@@ -1,0 +1,261 @@
+#' Fit the Forced-Choice GDINA Model
+#'
+#' @description
+#' Fits a forced-choice cognitive diagnostic model (FCGDINA) to comparative
+#' response data. The statement-level cognitive diagnosis component can be
+#' DINA, DINO, ACDM, or GDINA, and the block-level response model transforms
+#' statement endorsement probabilities into forced-choice probabilities for
+#' full rankings (\code{"RANK"}), most-least choices (\code{"MOLE"}), or
+#' best-only choices (\code{"PICK"}).
+#'
+#' @section Model Specification:
+#'
+#' Let \eqn{\boldsymbol{\alpha}_n \in \{0, 1\}^D} denote the latent attribute
+#' profile for person \eqn{n}. For statement \eqn{i}, the binary Q-vector
+#' \eqn{\mathbf{q}_i} selects the required attributes and the reduced
+#' attribute pattern is mapped to a CDM design row \eqn{\mathbf{x}_{ic}}.
+#' For Stan estimation, \eqn{\boldsymbol{\delta}_i} is represented directly
+#' as the item-specific CDM effect vector on the logit scale: intercept,
+#' attribute main effects, and interaction effects. The item-level endorsement
+#' probability for attribute class \eqn{c} is
+#' \deqn{
+#'   p_{ic} = \mathrm{logit}^{-1}(\mathbf{x}_{ic}' \boldsymbol{\delta}_i),
+#' }
+#' so main effects and interactions may be negative while probabilities remain
+#' in \eqn{(0, 1)}. Forced-choice observations identify only within-block
+#' utility contrasts, not the absolute endorsement logits of individual
+#' statements. The Stan implementation therefore removes the exact null space
+#' of those contrasts and reports the unique minimum-norm coefficient
+#' representative. The design matrix is generated according to \code{model}:
+#' \code{"DINA"}, \code{"DINO"}, \code{"ACDM"}, or \code{"GDINA"}. EM and
+#' iStEM retain the existing probability-scale CDM parameterisation.
+#'
+#' For each forced-choice block, the statement endorsement probabilities are
+#' converted to ranking-pattern probabilities by the same sequential
+#' Luce--Plackett transformation used by \code{\link{fit.FCMIRT}} and
+#' \code{\link{fit.FCGGUM}}. The likelihood marginalizes over all
+#' \eqn{2^D} attribute profiles using a uniform latent-class prior:
+#' \deqn{
+#'   P(\mathbf{Y}_n) =
+#'   \sum_{c=1}^{2^D} \pi_c
+#'   \prod_{b=1}^{B} P(Y_{nb} \mid \boldsymbol{\alpha}_c,
+#'   \boldsymbol{\delta}, \mathrm{block}_b).
+#' }
+#'
+#' @section Data Coding:
+#'
+#' \code{data} must be an \eqn{N \times B} matrix, with one column per
+#' forced-choice block. Entries may be character rankings such as
+#' \code{"2>1>3"} or 1-based integer pattern indices. If integer pattern
+#' indices are supplied, \code{block.items} must be provided because item
+#' identities cannot be recovered from indices alone. For \code{"MOLE"} and
+#' \code{"PICK"} character data, supplying \code{block.items} is recommended
+#' and required whenever partial rankings do not identify all items in a
+#' block.
+#'
+#' @param data An \eqn{N \times B} forced-choice data matrix.
+#' @param Q.matrix An \eqn{I \times D} binary Q-matrix. Rows correspond to
+#'   statements, columns correspond to attributes, and every row must contain
+#'   at least one \code{1}.
+#' @param model CDM item model: \code{"GDINA"}, \code{"DINA"},
+#'   \code{"DINO"}, or \code{"ACDM"}.
+#' @param block.items A list of length \eqn{B}. Each element gives the global
+#'   statement indices in the corresponding forced-choice block. If
+#'   \code{NULL}, the block structure is parsed from full-ranking character
+#'   data when possible.
+#' @param fc.type Forced-choice response type: \code{"RANK"}, \code{"MOLE"},
+#'   or \code{"PICK"}. A scalar is recycled to all blocks. If \code{NULL},
+#'   the type is inferred from character data when possible and otherwise
+#'   defaults to \code{"RANK"}.
+#' @param method Estimation method. \code{"EM"} (default) runs a
+#'   deterministic posterior-weight EM algorithm, \code{"stan"} runs full
+#'   Bayesian MCMC, and \code{"iStEM"} runs improved stochastic EM.
+#'
+#' @param control.model Optional list of model-level controls. For Stan,
+#'   \code{delta.mu} and \code{delta.sigma} set the normal prior
+#'   \eqn{\delta \sim N(\mu, \sigma)} for the free Stan FCGDINA logit-scale
+#'   delta effects (defaults: 0 and 1). \code{pi.prior.alpha} sets the
+#'   Dirichlet concentration for the structural parameters \eqn{\pi}
+#'   (default 1, uniform prior over the simplex). For EM and iStEM, Stan
+#'   priors are ignored; use \code{delta.lower} and \code{delta.upper} in
+#'   \code{control.method} instead.
+#' @param control.method Optional list of method-specific controls.
+#'
+#' @section Estimation Controls:
+#'
+#' Common \code{control.method} entries are:
+#' \describe{
+#'   \item{\code{seed}}{Integer random seed.}
+#'   \item{\code{cores}}{Number of cores used by Stan chains; ignored by the
+#'         deterministic EM updates.}
+#'   \item{\code{vis}}{Logical progress flag.}
+#'   \item{\code{delta.lower}, \code{delta.upper}}{Lower and upper bounds for
+#'         delta optimization in EM and iStEM. Defaults are -4 and 4.}
+#' }
+#'
+#' Stan-specific entries include \code{chains}, \code{iter}, \code{warmup},
+#' \code{thin}, \code{init}, \code{algorithm}, and the usual Stan
+#' \code{control} entries such as \code{adapt_delta}, \code{max_treedepth},
+#' \code{stepsize}, and \code{metric}. Defaults are inherited from the common
+#' ForceChoice Stan helper: 4 chains, 2000 iterations, and half the iterations
+#' used as warmup. The default \code{init = 0} is valid for Stan FCGDINA
+#' because it implies \eqn{p_{ic} = 0.5} under the logit link.
+#'
+#' iStEM-specific entries include \code{M}, \code{B}, \code{burnin.maxitr},
+#' \code{maxitr}, \code{eps1}, \code{eps2}, \code{frac1}, \code{frac2},
+#' \code{optim.maxit}, and \code{estimate.se}.  Each iStEM update samples
+#' discrete attribute classes from the current posterior and optimises
+#' \eqn{\delta} parameters given the sampled class memberships.
+#'
+#' EM-specific entries are:
+#' \describe{
+#'   \item{\code{maxitr}}{Maximum EM iterations; default 500.}
+#'   \item{\code{minitr}}{Minimum EM iterations before convergence checks;
+#'         default 2.}
+#'   \item{\code{tol}}{Absolute log-likelihood change tolerance; default
+#'         \code{1e-6}.}
+#'   \item{\code{par.tol}}{Maximum absolute delta-parameter change tolerance;
+#'         default \code{1e-4}.}
+#'   \item{\code{optim.maxit}}{Maximum L-BFGS-B iterations for blockwise delta
+#'         updates; default 200.}
+#'   \item{\code{estimate.se}}{Logical; whether to estimate standard errors by
+#'         nonparametric bootstrap. Default \code{FALSE}.}
+#'   \item{\code{bootstrap}}{Number of bootstrap samples when
+#'         \code{estimate.se = TRUE}. Default 100; must be at least 2.}
+#' }
+#'
+#' @return An object of class \code{"FCGDINA"}, a list containing:
+#' \describe{
+#'   \item{\code{npar}}{Number of free CDM delta parameters.}
+#'   \item{\code{method}}{Estimation method actually used:
+#'         \code{"stan"}, \code{"iStEM"}, or \code{"EM"}.}
+#'   \item{\code{alpha}}{List with \code{est}, \code{se}, \code{Rhat}, and
+#'         \code{prob}. \code{est} is an \eqn{N \times D} matrix of posterior
+#'         attribute mastery probabilities; \code{prob} contains posterior
+#'         probabilities for all \eqn{2^D} attribute profiles.}
+#'   \item{\code{delta}}{List with \code{est}, \code{se}, and \code{Rhat}.
+#'         For Stan fits, each element is the probability-scale transform of
+#'         the identified minimum-norm logit coefficient vector. Absolute
+#'         statement endorsement probabilities are not identified by
+#'         forced-choice data alone.}
+#'   \item{\code{delta.identification}}{Stan-only rank, nullity, blockwise
+#'         rank diagnostics, and the identifying convention.}
+#'   \item{\code{delta.store}}{Stored posterior, iStEM, or bootstrap delta
+#'         draws when available.}
+#'   \item{\code{Q.matrix}, \code{block.items}, \code{patterns},
+#'         \code{patterns.total}, \code{design.matrix.list},
+#'         \code{alpha.patterns}, \code{fc.type}, \code{response}}{Processed
+#'         model and data structures used by prediction, fit indices, and
+#'         S3 methods.}
+#'   \item{\code{stan.obj}, \code{MCMC.obj}}{Stan fit and extracted posterior
+#'         draws for \code{method = "stan"}; otherwise \code{NULL}.}
+#'   \item{\code{iStEM}}{iStEM convergence diagnostics and chains for
+#'         \code{method = "iStEM"}; otherwise \code{NULL}.}
+#'   \item{\code{EM}}{EM convergence diagnostics, log-likelihood trace, and
+#'         bootstrap summary for \code{method = "EM"}; otherwise
+#'         \code{NULL}.}
+#'   \item{\code{logLik}}{Marginal log-likelihood with class \code{"logLik"}.}
+#'   \item{\code{call}, \code{arguments}}{Matched call and effective fitting
+#'         arguments.}
+#' }
+#'
+#' @references
+#' de la Torre, J. (2011). The generalized DINA model framework.
+#' \emph{Psychometrika}, 76(2), 179--199.
+#' \doi{10.1007/s11336-011-9207-7}
+#'
+#' Templin, J., & Henson, R. A. (2006). Measurement of psychological disorders
+#' using cognitive diagnosis models. \emph{Psychological Methods}, 11(3),
+#' 287--305. \doi{10.1037/1082-989X.11.3.287}
+#'
+#' @seealso \code{\link{sim.data.FCGDINA}}, \code{\link{model.FCGDINA}},
+#'   \code{\link{get.fit.index.FCGDINA}}, \code{\link{fit.FCDCM}},
+#'   \code{\link{fit.FCMIRT}}, \code{\link{fit.FCGGUM}}
+#'
+#' @examples
+#' sim <- sim.data.FCGDINA(N.person = 20, N.block = 2, I.block = 2,
+#'                         D = 2, model = "DINA", fc.type = "RANK")
+#'
+#' fit <- fit.FCGDINA(
+#'   sim$data,
+#'   Q.matrix = sim$Q.matrix,
+#'   block.items = sim$block.items,
+#'   model = "DINA",
+#'   fc.type = sim$fc.type,
+#'   method = "EM",
+#'   control.method = list(seed = 123, vis = FALSE,
+#'                         maxitr = 2, estimate.se = FALSE)
+#' )
+#'
+#' coef(fit, type = "par")
+#' head(fit$alpha$est)
+#' logLik(fit)
+#'
+#' \donttest{
+#' # stan code, long time
+#' fit.stan <- fit.FCGDINA(
+#'   sim$data,
+#'   Q.matrix = sim$Q.matrix,
+#'   block.items = sim$block.items,
+#'   model = "GDINA",
+#'   method = "stan",
+#'   control.method = list(seed = 123, cores = 2,
+#'                         chains = 1, iter = 200, warmup = 100)
+#' )
+#' }
+#'
+#' @export
+fit.FCGDINA <- function(data, Q.matrix,
+                        model = c("GDINA", "DINA", "DINO", "ACDM"),
+                        block.items = NULL, fc.type = NULL,
+                        method = c("EM", "stan", "iStEM"),
+                        control.model = NULL,
+                        control.method = NULL) {
+
+  call <- match.call()
+  method <- match.arg(method)
+  model <- match.arg(toupper(model[1L]), c("GDINA", "DINA", "DINO", "ACDM"))
+
+  block.items <- resolve_block_items(block.items, data)
+  fc.type     <- resolve_fc_type(fc.type, data, block.items)
+
+  control.model  <- fc_as_control_list(control.model, "control.model")
+  control.method <- fc_as_control_list(control.method, "control.method")
+
+  if (method == "stan") {
+    return(fit.FCGDINA.stan(
+      data = data,
+      Q.matrix = Q.matrix,
+      model = model,
+      block.items = block.items,
+      fc.type = fc.type,
+      control.model = control.model,
+      control.method = control.method,
+      .call = call
+    ))
+  }
+
+  if (method == "EM") {
+    return(fit.FCGDINA.EM(
+      data = data,
+      Q.matrix = Q.matrix,
+      model = model,
+      block.items = block.items,
+      fc.type = fc.type,
+      control.model = control.model,
+      control.method = control.method,
+      .call = call
+    ))
+  }
+
+  fit.FCGDINA.iStEM(
+    data = data,
+    Q.matrix = Q.matrix,
+    model = model,
+    block.items = block.items,
+    fc.type = fc.type,
+    control.model = control.model,
+    control.method = control.method,
+    .call = call
+  )
+}

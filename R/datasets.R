@@ -1,0 +1,48 @@
+#' Triplets of Pairwise Comparisons
+#'
+#' @description
+#' A synthetic forced-choice data set containing pairwise comparison responses
+#' for the first 200 of 2000 participants on four triplets. The data were
+#' originally generated as part of Brown and Maydeu-Olivares (2012) and are
+#' distributed in the published R package \pkg{thurstonianIRT}.
+#'
+#' In each triplet, participants ranked three alternative statements according
+#' to their preference. The rankings were then converted into dichotomous
+#' pairwise responses for all three within-triplet comparisons.
+#'
+#' @format A data frame with 200 rows and 12 integer columns. Values are 0/1
+#'   pairwise preference indicators. Overall, the 12 statements measure three
+#'   traits. Items 1, 4, 7, and 10 load on trait 1; items 2, 5, 8, and 11 load
+#'   on trait 2; and items 3, 6, 9, and 12 load on trait 3. Items 4, 9, and 11
+#'   are reverse-keyed.
+#' \describe{
+#'   \item{i1i2}{Response preference between item 1 and item 2.}
+#'   \item{i1i3}{Response preference between item 1 and item 3.}
+#'   \item{i2i3}{Response preference between item 2 and item 3.}
+#'   \item{i4i5}{Response preference between item 4 and item 5.}
+#'   \item{i4i6}{Response preference between item 4 and item 6.}
+#'   \item{i5i6}{Response preference between item 5 and item 6.}
+#'   \item{i7i8}{Response preference between item 7 and item 8.}
+#'   \item{i7i9}{Response preference between item 7 and item 9.}
+#'   \item{i8i9}{Response preference between item 8 and item 9.}
+#'   \item{i10i11}{Response preference between item 10 and item 11.}
+#'   \item{i10i12}{Response preference between item 10 and item 12.}
+#'   \item{i11i12}{Response preference between item 11 and item 12.}
+#' }
+#'
+#' @source
+#' Brown, A. & Maydeu-Olivares, A. (2012). Fitting a Thurstonian IRT model to
+#' forced-choice data using Mplus. Behavior Research Methods, 44, 1135-1147.
+#' doi:10.3758/s13428-012-0217-x
+#'
+#' The data file was taken from the published R package \pkg{thurstonianIRT}.
+#'
+#' @examples
+#' data("triplets")
+#' dim(triplets)
+#' head(triplets)
+#'
+#' @docType data
+#' @keywords datasets
+#' @name triplets
+NULL

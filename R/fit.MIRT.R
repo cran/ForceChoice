@@ -1,0 +1,386 @@
+#' Fit the Multidimensional Item Response Theory (MIRT) Model
+#'
+#' @description
+#' Fits a multidimensional extension of the 1PL, 2PL, 3PL, or 4PL item
+#' response model to binary response data. Two estimation backends are
+#' provided: full Bayesian inference via Hamiltonian Monte Carlo (Stan) and
+#' a fast stochastic-EM algorithm (iStEM) that scales to large data sets.
+#'
+#' @section Model Specification:
+#'
+#' Let \eqn{Y_{ij} \in \{0, 1\}} denote the binary response of person
+#' \eqn{j = 1, \dots, N} to item \eqn{i = 1, \dots, I}, and let
+#' \eqn{\boldsymbol{\theta}_j = (\theta_{j1}, \dots, \theta_{jD})'}
+#' denote the \eqn{D}-dimensional latent trait vector. The item response
+#' function (IRF) for the four model variants is:
+#'
+#' \strong{M1PL (Rasch / one-parameter logistic):}
+#' \deqn{
+#'   P(Y_{ij} = 1 \mid \boldsymbol{\theta}_j) =
+#'   \frac{1}{1 + \exp\bigl[-\bigl(\sum_{d=1}^{D} a_{id}\,\theta_{jd} - b_i\bigr)\bigr]},
+#'   \qquad a_{id} = 1
+#' }
+#' The M1PL implementation fixes the slope to 1 and is restricted to
+#' \eqn{D = 1}; fixed unit slopes do not identify separate dimensions.
+#'
+#' \strong{M2PL (two-parameter logistic):}
+#' \deqn{
+#'   P(Y_{ij} = 1 \mid \boldsymbol{\theta}_j) =
+#'   \frac{1}{1 + \exp\bigl[-\bigl(\sum_{d=1}^{D} a_{id}\,\theta_{jd} - b_i\bigr)\bigr]},
+#'   \qquad a_{id} > 0 \text{ if } q_{id} = 1,\; a_{id} = 0 \text{ otherwise}
+#' }
+#' The discrimination (slope) parameters \eqn{a_{id}} are freely estimated
+#' subject to the Q-matrix pattern and a log-normal prior.
+#'
+#' \strong{M3PL (three-parameter logistic):}
+#' \deqn{
+#'   P(Y_{ij} = 1 \mid \boldsymbol{\theta}_j) =
+#'   c_i + (1 - c_i) \times
+#'   \frac{1}{1 + \exp\bigl[-\bigl(\sum_{d=1}^{D} a_{id}\,\theta_{jd} - b_i\bigr)\bigr]}
+#' }
+#' where \eqn{c_i \in [0, 1)} is the lower-asymptote (pseudo-guessing) parameter.
+#'
+#' \strong{M4PL (four-parameter logistic):}
+#' \deqn{
+#'   P(Y_{ij} = 1 \mid \boldsymbol{\theta}_j) =
+#'   c_i + (d_i - c_i) \times
+#'   \frac{1}{1 + \exp\bigl[-\bigl(\sum_{d=1}^{D} a_{id}\,\theta_{jd} - b_i\bigr)\bigr]}
+#' }
+#' where \eqn{c_i \in [0, 1)} is the lower asymptote and
+#' \eqn{d_i \in (0, 1]} is the upper asymptote (1 - slippage).
+#'
+#' In the unidimensional case (\eqn{D = 1}), these reduce to the standard
+#' 1PL--4PL models. For \eqn{D > 1}, the Q-matrix governs which dimensions
+#' load on each item, enabling both exploratory (default triangular
+#' identification) and confirmatory (user-specified Q-matrix) structures.
+#'
+#' \strong{Prior distributions (Bayesian / MAP):}
+#' \describe{
+#'   \item{\eqn{a_{id}} (free)}{Log-normal: \eqn{\log a_{id} \sim N(\mu_a, \sigma_a^2)}.
+#'         Defaults: \eqn{\mu_a = 0.25}, \eqn{\sigma_a = 0.25}.}
+#'   \item{\eqn{b_i}}{Normal: \eqn{b_i \sim N(\mu_b, \sigma_b^2)}.
+#'         Defaults: \eqn{\mu_b = 0}, \eqn{\sigma_b = 1}.}
+#'   \item{\eqn{c_i}}{Uniform: \eqn{c_i \sim U(c_{\min}, c_{\max})}.
+#'         Defaults: \eqn{c_{\min} = 0}, \eqn{c_{\max} = 0.35}.}
+#'   \item{\eqn{d_i}}{Uniform: \eqn{d_i \sim U(d_{\min}, d_{\max})}.
+#'         Defaults: \eqn{d_{\min} = 0.65}, \eqn{d_{\max} = 1}.}
+#'   \item{\eqn{\boldsymbol{\theta}_j}}{Multivariate normal:
+#'         \eqn{\boldsymbol{\theta}_j \sim N_D(\boldsymbol{\mu}_\theta, \boldsymbol{\Sigma})},
+#'         with \eqn{\boldsymbol{\mu}_\theta = \mathbf{0}} and
+#'         \eqn{\boldsymbol{\Sigma}} a correlation matrix.}
+#' }
+#'
+#' @section Estimation Methods:
+#'
+#' \describe{
+#'   \item{\strong{Stan} (\code{method = "stan"}):}{
+#'     Full Bayesian inference via Hamiltonian Monte Carlo (NUTS/HMC).
+#'     The joint posterior of all parameters is explored using multiple
+#'     Markov chains. Output includes posterior means, standard deviations,
+#'     and \eqn{\hat{R}} convergence diagnostics for all parameters.
+#'     Marginal log-likelihood is approximated via Gauss--Hermite-type
+#'     quadrature over the latent space.}
+#'   \item{\strong{iStEM} (\code{method = "iStEM"}):}{
+#'     An improved Stochastic EM (iStEM) algorithm that
+#'     alternates between (a) sampling \eqn{\boldsymbol{\theta}_j} from its
+#'     finite-grid full conditional as one \eqn{D}-dimensional block using
+#'     the person's complete response likelihood and (b) maximizing the
+#'     complete-data posterior for item parameters via L-BFGS-B.
+#'     The inter-trait correlation matrix \eqn{\boldsymbol{\Sigma}} is estimated
+#'     by constrained unit-diagonal normal-likelihood optimization.
+#'     Convergence is monitored using Geweke (1992) convergence diagnostics
+#'     and batch-means Monte Carlo error estimates. Standard errors are
+#'     obtained from the final Monte Carlo chain.}
+#' }
+#'
+#' @param data An \eqn{N \times I} matrix of binary responses coded as
+#'   \code{0} (incorrect) and \code{1} (correct). Rows index persons, columns
+#'   index items. Missing values are not allowed.
+#' @param model Character string specifying the model type. Accepts both
+#'   internal codes (\code{"m1pl"}, \code{"m2pl"}, \code{"m3pl"},
+#'   \code{"m4pl"}) and user-friendly aliases (\code{"Rasch"}, \code{"1PL"},
+#'   \code{"2PL"}, \code{"3PL"}, \code{"4PL"}). Case-insensitive.
+#'   Default is \code{"2PL"}.
+#' @param D Integer; number of latent dimensions (\eqn{D \ge 1}). If
+#'   \code{NULL} (default), \code{D} is inferred from \code{Q.matrix}; if both
+#'   are \code{NULL}, an error is raised. When \code{D = 1}, the model reduces
+#'   to unidimensional IRT.
+#' @param Q.matrix An optional \eqn{I \times D} binary matrix. Entry
+#'   \eqn{q_{id} = 1} indicates that the \eqn{d}-th dimension loads on item
+#'   \eqn{i}. For 2PL--4PL models, \eqn{q_{id} = 1} frees \eqn{a_{id}} and
+#'   \eqn{q_{id} = 0} fixes \eqn{a_{id} = 0}. For the current M1PL backend,
+#'   slopes are fixed to 1 and the Q-matrix does not zero out slope entries.
+#'   If \code{NULL} (default), a triangular identification pattern is used:
+#'   all items load on all dimensions except the last \eqn{D} items, which
+#'   follow a lower-triangular structure for rotational invariance resolution.
+#' @param method Estimation method: \code{"iStEM"} (fast stochastic EM for
+#'   large data; default) or \code{"stan"} (full Bayesian HMC).
+#' @param control.model A named list of model-level hyperparameters.
+#'   Supported entries:
+#'   \describe{
+#'     \item{\code{a.mu}, \code{a.sigma}}{Prior location and scale for
+#'           \eqn{\log a_{id}} (log-normal). Defaults: 0.25, 0.25.}
+#'     \item{\code{b.mu}, \code{b.sigma}}{Prior mean and SD for \eqn{b_i}
+#'           (normal). Defaults: 0, 1.}
+#'     \item{\code{c.mu}, \code{c.sigma}}{Uniform support bounds
+#'           \eqn{[c_{\min}, c_{\max}]} for \eqn{c_i}. Defaults: 0, 0.35.}
+#'     \item{\code{d.mu}, \code{d.sigma}}{Uniform support bounds
+#'           \eqn{[d_{\min}, d_{\max}]} for \eqn{d_i}. Defaults: 0.65, 1.}
+#'     \item{\code{theta.mu}}{Prior mean vector for
+#'           \eqn{\boldsymbol{\theta}_j}. Default: \code{rep(0, D)}.}
+#'     \item{\code{L}}{Theta grid size per dimension for marginal
+#'           log-likelihood computation and iStEM block Gibbs sampling.
+#'           Default adapts to \eqn{D}
+#'           (e.g., 61 for D = 1, 31 for D = 2, 15 for D = 3).}
+#'     \item{\code{theta.lower}, \code{theta.upper}}{Bounds for the
+#'           theta grid used by marginal log-likelihood computation and
+#'           iStEM block Gibbs sampling. Defaults: -6, 6.}
+#'     \item{\code{use.prior}}{Logical (iStEM only). If \code{FALSE}, the
+#'           item-prior penalty term is omitted from the item update,
+#'           recovering an approximate maximum-likelihood item step.
+#'           Default is \code{TRUE}.}
+#'   }
+#' @param control.method A named list of method-specific tuning parameters.
+#'   Common entries (used by both Stan and iStEM):
+#'   \describe{
+#'     \item{\code{cores}}{Number of CPU cores for parallel chains
+#'           (Stan) or ignored (iStEM). Default: the number of
+#'           \code{chains}.}
+#'     \item{\code{vis}}{Logical; if \code{TRUE} (default), prints progress
+#'           information to the console.}
+#'     \item{\code{seed}}{Random seed for reproducibility.
+#'           Default: a random integer.}
+#'   }
+#'   Stan-specific entries:
+#'   \describe{
+#'     \item{\code{chains}}{Number of MCMC chains (default: 2).}
+#'     \item{\code{iter}}{Total iterations per chain (default: 5000).}
+#'     \item{\code{warmup}}{Warmup/burn-in iterations per chain
+#'           (default: \code{iter / 2}).}
+#'     \item{\code{thin}}{Thinning interval (default: 1).}
+#'     \item{\code{init}}{Initial values: \code{"random"} (default)
+#'           for uniform(-2, 2) initialization, or a list of initial
+#'           values per chain.}
+#'     \item{\code{algorithm}}{MCMC algorithm: \code{"HMC"} (default),
+#'           \code{"HMC"}, or \code{"Fixed_param"}.}
+#'     \item{\code{adapt_delta}}{Target average acceptance probability
+#'           (NUTS; default: 0.95).}
+#'     \item{\code{max_treedepth}}{Maximum tree depth (NUTS; default: 10).}
+#'     \item{\code{stepsize}}{Initial step size for the leapfrog integrator.
+#'           If not set, Stan determines an appropriate value automatically
+#'           during warmup. Only applicable when \code{algorithm = "HMC"}
+#'           or \code{"NUTS"}.}
+#'     \item{\code{int_time}}{Total integration time for each HMC leapfrog
+#'           trajectory. The number of steps is \code{int_time / stepsize}.
+#'           Only applicable when \code{algorithm = "HMC"}.}
+#'     \item{\code{metric}}{The mass matrix for HMC sampling. Can be a
+#'           unit vector (\code{"unit_e"}), a diagonal matrix
+#'           (\code{"diag_e"}), or a dense matrix (\code{"dense_e"}).
+#'           Stan defaults to \code{"diag_e"}.}
+#'     \item{\code{adapt_engaged}}{Logical; if \code{TRUE} (default), the
+#'           warmup adaptation is enabled. Set to \code{FALSE} to disable
+#'           step-size and mass-matrix adaptation during warmup.}
+#'     \item{\code{adapt_init_buffer}}{Number of initial warmup iterations
+#'           used for pure exploration before adaptation begins
+#'           (default: 25).}
+#'     \item{\code{adapt_term_buffer}}{Number of final warmup iterations
+#'           where adaptation is frozen so the sampler can converge to the
+#'           stationary distribution (default: 50).}
+#'     \item{\code{adapt_window}}{Number of warmup iterations between
+#'           adaptation updates. Larger values reduce the frequency of
+#'           adaptation (default: 25).}
+#'   }
+#'   iStEM-specific entries:
+#'   \describe{
+#'     \item{\code{M}}{Number of burn-in batches retained for convergence
+#'           diagnosis (default: 10). Must be at least 2. Larger values
+#'           improve the Geweke diagnostic stability but increase computation
+#'           during burn-in.}
+#'     \item{\code{B}}{Batch size: number of stochastic EM iterations per batch
+#'           (default: 20). Each iteration samples all persons'
+#'           \eqn{\boldsymbol{\theta}_j} blocks and updates all items.}
+#'     \item{\code{burnin.maxitr}}{Maximum number of burn-in batches
+#'           (default: 100). If convergence criteria are not met before this
+#'           limit, the algorithm proceeds with a warning. Increase this
+#'           value if convergence warnings appear consistently.}
+#'     \item{\code{maxitr}}{Maximum number of total batches including
+#'           post-burn-in iterations (default: 2000). The algorithm stops
+#'           when either the MC error criterion is met or this limit is
+#'           reached.}
+#'     \item{\code{eps1}}{Geweke z-score convergence threshold for the
+#'           burn-in phase (default: 1.5). The burn-in phase ends when
+#'           \eqn{\sum z^2 / K < \epsilon_1} or the MC error criterion
+#'           is satisfied. Lower values enforce stricter convergence
+#'           but prolong burn-in.}
+#'     \item{\code{eps2}}{Monte Carlo error tolerance for the final chain
+#'           (default: 0.4). The algorithm continues sampling until
+#'           \eqn{\max(d_k \cdot N) < \epsilon_2}, where \eqn{d_k} is
+#'           the batch-means variance for each parameter. Lower values
+#'           yield more precise estimates.}
+#'     \item{\code{frac1}, \code{frac2}}{Fractions used in the Geweke
+#'           convergence diagnostic (defaults: 0.1, 0.5). \code{frac1}
+#'           defines the proportion of the chain used for the early
+#'           segment; \code{frac2} defines the proportion for the late
+#'           segment. These follow standard practice from the
+#'           \pkg{coda} package.}
+#'     \item{\code{corr.optim.maxit}}{Maximum L-BFGS-B iterations for the
+#'           constrained unit-diagonal correlation update (default: 50).}
+#'     \item{\code{optim.maxit}}{Maximum L-BFGS-B iterations per item
+#'           during the item-parameter update step (default: 50).
+#'           Increase if item-level optimization warnings appear.}
+#'     \item{\code{fix.corr}}{Logical; if \code{TRUE}, the inter-trait
+#'           correlation matrix is fixed to the identity during estimation
+#'           (default: \code{FALSE}). Setting to \code{TRUE} enforces
+#'           orthogonal latent dimensions.}
+#'     \item{\code{estimate.se}}{Logical; if \code{TRUE} (default), standard
+#'           errors are computed as the batch-means-based standard deviation
+#'           of the final Monte Carlo chain. Set to \code{FALSE} to skip
+#'           SE computation (slightly faster).}
+#'     \item{\code{a.lower}, \code{a.upper}}{Bounds on each
+#'           \eqn{a_{id}} (defaults: 1e-4, 6). For 2PL--4PL models,
+#'           discrimination parameters are constrained to this interval
+#'           during L-BFGS-B optimization.}
+#'     \item{\code{b.lower}, \code{b.upper}}{Bounds on \eqn{b_i}
+#'           (defaults: -6, 6). Item difficulty/intercept parameters
+#'           are constrained to this interval during optimization.}
+#'     \item{\code{c.lower}, \code{c.upper}}{Bounds on \eqn{c_i} for
+#'           3PL/4PL models. Defaults are inherited from the prior support
+#'           bounds (\code{control.model$c.mu} = 0 and
+#'           \code{control.model$c.sigma} = 0.35, respectively).
+#'           Override these to impose tighter or wider bounds on the
+#'           lower-asymptote parameters during optimization.}
+#'     \item{\code{d.lower}, \code{d.upper}}{Bounds on \eqn{d_i} for
+#'           4PL models. Defaults are inherited from the prior support
+#'           bounds (\code{control.model$d.mu} = 0.65 and
+#'           \code{control.model$d.sigma} = 1, respectively).
+#'           Override these to constrain the upper-asymptote parameters
+#'           during optimization.}
+#'   }
+#'
+#' @return An object of class \code{"MIRT"} containing the following
+#'   components:
+#'   \describe{
+#'     \item{\code{npar}}{Integer; number of free parameters
+#'           (= freely estimated item parameters + free correlation elements).}
+#'     \item{\code{method}}{Character; \code{"stan"} or \code{"iStEM"}.}
+#'     \item{\code{theta}}{List with matrices \code{est}, \code{se},
+#'           \code{Rhat} (\eqn{N \times D}); person parameter estimates.}
+#'     \item{\code{par}}{List with matrices \code{est}, \code{se},
+#'           \code{Rhat}, \code{free} (\eqn{I \times (D+3)}); item parameter
+#'           arrays. Columns are \code{a1..aD, b, c, d}.}
+#'     \item{\code{Corr}}{List with matrices \code{est}, \code{se},
+#'           \code{Rhat} (\eqn{D \times D}); inter-trait correlation matrix.}
+#'     \item{\code{Q.matrix}}{The \eqn{I \times D} Q-matrix used.}
+#'     \item{\code{stan.obj}}{The \code{stanfit} object (Stan only;
+#'           \code{NULL} for iStEM).}
+#'     \item{\code{MCMC.obj}}{The list returned by \code{rstan::extract()}
+#'           (Stan only; \code{NULL} for iStEM).}
+#'     \item{\code{logLik}}{The marginal log-likelihood computed via
+#'           Gauss--Hermite-type quadrature (class \code{"logLik"}).}
+#'     \item{\code{call}}{The matched call.}
+#'     \item{\code{arguments}}{List of arguments used in fitting.}
+#'     \item{\code{iStEM}}{List of iStEM diagnostic quantities (iStEM only),
+#'           including burn-in size, convergence flags, and theta grid length.}
+#'   }
+#'
+#' @references
+#' Reckase, M. D. (2009). \emph{Multidimensional Item Response Theory}.
+#'   Springer. \doi{10.1007/978-0-387-89976-3}
+#'
+#' Birnbaum, A. (1968). Some latent trait models and their use in inferring
+#'   an examinee's ability. In F. M. Lord & M. R. Novick, \emph{Statistical
+#'   theories of mental test scores} (pp. 397--479). Addison-Wesley.
+#'
+#' Barton, M. A., & Lord, F. M. (1981). An upper asymptote for the
+#'   three-parameter logistic item-response model. \emph{ETS Research Report
+#'   Series}, 1981(1), i--21.
+#'
+#' Geweke, J. (1992). Evaluating the accuracy of sampling-based approaches
+#'   to the calculation of posterior moments. In J. M. Bernardo et al.
+#'   (Eds.), \emph{Bayesian Statistics 4} (pp. 169--193). Oxford University
+#'   Press.
+#'
+#' @seealso
+#' \code{\link{good.of.fit}} for goodness-of-fit evaluation,
+#' \code{\link{get.fit.index.MIRT}} for MIRT-specific fit indices,
+#' \code{\link{sim.data.MIRT}} for simulating data from this model,
+#' \code{\link{rotate}} for post-hoc rotation of MIRT solutions,
+#' \code{\link{logLik.MIRT}} for marginal log-likelihood extraction.
+#'
+#' @examples
+#' # Simulate data from a 2-dimensional 2PL model
+#' sim <- sim.data.MIRT(N = 20, I = 6, D = 2, model = "m2pl")
+#'
+#' # Fit via iStEM (fast, large-data friendly)
+#' fit_istem <- fit.MIRT(sim$response, model = "m2pl", D = 2,
+#'                       method = "iStEM",
+#'                       control.method = list(
+#'                         vis = FALSE, seed = 123,
+#'                         M = 2, B = 2, burnin.maxitr = 2,
+#'                         maxitr = 3, eps1 = 10, eps2 = 10,
+#'                         estimate.se = FALSE))
+#'
+#' \donttest{
+#' # stan code, long time
+#' # Fit via Stan (full Bayesian inference, computationally heavier)
+#' fit_stan <- fit.MIRT(sim$response, model = "m2pl", D = 2,
+#'                      method = "stan",
+#'                      control.method = list(
+#'                        chains = 1, iter = 200, warmup = 100,
+#'                        cores = 1, seed = 123))
+#' }
+#'
+#' # Extract results
+#' print(fit_istem$par$est)       # item parameter estimates
+#' print(fit_istem$theta$est)     # person trait estimates
+#' print(fit_istem$Corr$est)      # factor correlation matrix
+#'
+#' # Compute goodness-of-fit indices
+#' gof <- get.fit.index(fit_istem)
+#' summary(gof)
+#'
+#' @export
+fit.MIRT <- function(data, model = "2PL", D = NULL,
+                     Q.matrix = NULL,
+                     method = c("iStEM", "stan"),
+                     control.model = NULL,
+                     control.method = NULL) {
+
+  call <- match.call()
+  method <- match.arg(method)
+  model <- resolve_model_type(model)
+  data <- istem_prepare_response(data, binary = TRUE)
+  D <- resolve_D(D, Q.matrix = Q.matrix, I = ncol(data))
+  if (model == "m1pl" && D > 1L) {
+    stop("M1PL is supported only for D = 1; fixed unit slopes do not ",
+         "identify separate dimensions.", call. = FALSE)
+  }
+  Q.matrix <- istem_prepare_01_q(
+    I = ncol(data), D = D, Q.matrix = Q.matrix, triangular = TRUE,
+    require.row = TRUE
+  )
+  control.model  <- fc_as_control_list(control.model, "control.model")
+  control.method <- fc_as_control_list(control.method, "control.method")
+
+  if (method == "stan") {
+    return(fit.MIRT.stan(
+      response = data,
+      model = model,
+      D = D,
+      Q.matrix = Q.matrix,
+      control.model = control.model,
+      control.method = control.method,
+      .call = call
+    ))
+  }
+
+  fit.MIRT.iStEM(
+    response = data,
+    model = model,
+    D = D,
+    Q.matrix = Q.matrix,
+    control.model = control.model,
+    control.method = control.method,
+    .call = call
+  )
+}

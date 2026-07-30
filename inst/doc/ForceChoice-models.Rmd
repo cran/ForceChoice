@@ -1,0 +1,418 @@
+---
+title: "ForceChoice Model Theory and Selection Guide"
+author: "Haijiang Qin & Lei Guo"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Model Theory and Selection Guide}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+## Overview
+
+This vignette describes the theoretical foundations of the eight model
+families in **ForceChoice** and provides guidance for model selection.
+Core models support Stan (full Bayesian HMC) and iStEM (iterative Stochastic
+EM); FCGDINA additionally supports deterministic EM.
+
+The equations below use the parameterizations implemented in the package.
+For several families, especially MGPCM and MGGUM, this means the notation is
+not a verbatim copy of the original unidimensional source article. The cited
+papers identify the model family and response-process assumptions; the
+implementation details are those exposed by the corresponding `fit.*()`
+documentation.
+
+## Traditional (Single-Stimulus) Models
+
+### MIRT: Multidimensional Item Response Theory
+
+The MIRT model extends unidimensional IRT to multiple latent dimensions.
+For binary response $Y_{ij} \in \{0, 1\}$, the item response function is:
+
+$$
+P(Y_{ij}=1 \mid \boldsymbol{\theta}_j) = c_i + (d_i - c_i) \times
+\frac{1}{1 + \exp[-( \mathbf{a}_i' \boldsymbol{\theta}_j - b_i)]}
+$$
+
+where $\mathbf{a}_i = (a_{i1}, \ldots, a_{iD})'$ is the discrimination
+vector, $b_i$ is the difficulty (intercept), $c_i$ is the lower asymptote
+(pseudo-guessing), and $d_i$ is the upper asymptote.
+
+**Model variants:**
+
+| Model | Free Parameters | Fixed |
+|---|---|---|
+| M1PL (Rasch) | $b_i$ | $a_{id} = q_{id}$, $c_i=0$, $d_i=1$ |
+| M2PL | $a_{id}, b_i$ | $c_i=0$, $d_i=1$ |
+| M3PL | $a_{id}, b_i, c_i$ | $d_i=1$ |
+| M4PL | $a_{id}, b_i, c_i, d_i$ | - |
+
+**When to use:** Binary response data where items vary in discrimination
+and difficulty. Dominance model: higher trait always increases endorsement
+probability.
+
+**Key reference:** Reckase, M. D. (2009). *Multidimensional Item Response
+Theory*. Springer.
+
+---
+
+### MGPCM: Multidimensional Generalized Partial Credit Model
+
+For polytomous responses $Y_{ij} \in \{0, 1, \ldots, K_i-1\}$,
+**ForceChoice** implements a multidimensional softmax parameterization:
+
+$$
+P(Y_{ij} = k \mid \boldsymbol{\theta}_j) =
+\frac{\exp\{k\eta_{ij} + d_{ik}\}}
+{\sum_{r=0}^{K_i-1}\exp\{r\eta_{ij} + d_{ir}\}},
+\qquad
+\eta_{ij}=\sum_{d=1}^{D}a_{id}\theta_{jd}.
+$$
+
+The $d_{ik}$ values are category intercepts rather than cumulative step
+difficulties; $d_{i0} \equiv 0$ is fixed for identification. This
+implementation nests the generalized partial credit model of Muraki (1992)
+in the unidimensional case.
+
+**When to use:** Polytomous (ordered category) data such as Likert-type
+responses. A dominance model: higher trait implies higher category.
+
+**Key reference:** Muraki, E. (1992). A generalized partial credit model:
+Application of an EM algorithm. *Applied Psychological Measurement*,
+*16*(2), 159--176.
+
+---
+
+### MGGUM: Multidimensional Generalized Graded Unfolding Model
+
+The MGGUM is an ideal-point (unfolding) model where endorsement is governed
+by distance between the person and item locations. In **ForceChoice**, define
+
+$$
+r_{ij} =
+\left[
+  \sum_{d=1}^{D} a_{id}^2(\theta_{jd}-\delta_{id})^2
+\right]^{1/2},
+\qquad
+S_i = \sum_{d=1}^{D} a_{id},
+$$
+
+and let $\tau_{i0}=0$, $\psi_{ik}=S_i\sum_{v=0}^{k}\tau_{iv}$, and
+$M_i=2K_i-1$. Then
+
+$$
+P(Y_{ij}=k \mid \boldsymbol{\theta}_j)=
+\frac{
+  \exp\{kr_{ij}-\psi_{ik}\}+
+  \exp\{(M_i-k)r_{ij}-\psi_{ik}\}
+}{
+  \sum_{r=0}^{K_i-1}
+  [\exp\{rr_{ij}-\psi_{ir}\}+
+   \exp\{(M_i-r)r_{ij}-\psi_{ir}\}]
+}.
+$$
+
+The signed Q-matrix ($q_{id} \in \{-1, 0, 1\}$) indicates active
+dimensions and the side of the latent continuum on which the item location
+lies. The sign controls $\delta_{id}$, not the sign of the discrimination
+parameter.
+
+**When to use:** Attitude/ preference measurement where both ends of the
+trait continuum can lead to disagreement (e.g., "I like moderate
+temperatures": both extreme cold-lovers and heat-lovers disagree).
+
+**Key references:**
+- Roberts, J. S., Donoghue, J. R., & Laughlin, J. E. (2000). A general
+  item response theory model for unfolding unidimensional polytomous
+  responses. *Applied Psychological Measurement*, *24*(1), 3--32.
+- Tu, N., Zhang, B., Angrave, L., Sun, T., & Neuman, M. (2023). Estimating
+  the Multidimensional Generalized Graded Unfolding Model with covariates
+  using a Bayesian approach. *Journal of Intelligence*, *11*, 163.
+
+---
+
+## Forced-Choice (Comparative) Models
+
+Forced-choice (FC) formats ask respondents to compare items within blocks
+rather than rating items in isolation. This can reduce response-style
+biases such as acquiescence, social desirability, and extreme responding,
+but it introduces comparative/ipsative information with model-specific
+identification requirements.
+
+### FCMIRT: Forced-Choice MIRT
+
+Item-level endorsement follows the MIRT model (1PL--4PL). At the block
+level, **ForceChoice** uses a sequential Luce--Plackett ranking kernel with
+utilities equal to the logit of the item-level endorsement probability:
+
+$$
+u_i(\boldsymbol{\theta}_j) =
+\log\left[\frac{P_i(\boldsymbol{\theta}_j)}
+{1-P_i(\boldsymbol{\theta}_j)}\right].
+$$
+
+$$
+P(i_{(1)} \succ \cdots \succ i_{(K_b)} \mid \boldsymbol{\theta}_j) =
+\prod_{m=1}^{K_b-1}
+\frac{\exp\{u_{i_{(m)}}(\boldsymbol{\theta}_j)\}}
+{\sum_{r=m}^{K_b}\exp\{u_{i_{(r)}}(\boldsymbol{\theta}_j)\}}.
+$$
+
+**Identification:** Block difficulties sum to zero: $\sum_{i \in b} b_i = 0$.
+
+**FC types:**
+- **RANK**: Full ranking of all items within each block
+- **MOLE**: Only most and least preferred items identified
+- **PICK**: Only most preferred item identified
+
+**When to use:** Forced-choice questionnaires with dominance items
+(personality, vocational preferences).
+
+**Key reference:** Zheng, C., Liu, J., Li, Y., et al. (2024). A 2PLM-RANK
+multidimensional forced-choice model and its fast estimation algorithm.
+*Behavior Research Methods*, *56*, 6363--6388.
+
+**Ranking-model references:** Luce (1959) and Plackett (1975).
+
+---
+
+### FCGGUM: Forced-Choice GGUM
+
+Combines the GGUM ideal-point model at the item level with the same
+sequential Luce--Plackett ranking kernel used by FCMIRT. The block-level
+ranking probability uses the logit of the GGUM endorsement probability as
+the statement utility.
+
+**Identification:** Same block-level sum-to-zero constraint as FCMIRT.
+Signed Q-matrix indicates both dimension membership and statement direction.
+
+**When to use:** Forced-choice questionnaires with ideal-point/unfolding
+items (e.g., personality items where both extremes disagree).
+
+**Key reference:** Lee, P., Joo, S.-H., Stark, S., & Chernyshenko, O. S.
+(2018). GGUM-RANK statement and person parameter estimation with
+multidimensional forced choice triplets. *Applied Psychological
+Measurement*, *43*(3), 226--240.
+
+---
+
+### TIRT: Thurstonian IRT for Forced-Choice
+
+The TIRT model works directly with pairwise comparisons via a probit link.
+For each pair $(i, k)$ in block $b$, the latent comparative judgment is:
+
+$$
+y_{j,ik}^* = -\gamma_{ik} + \lambda_i \mathbf{q}_i'\boldsymbol{\theta}_j -
+\lambda_k \mathbf{q}_k'\boldsymbol{\theta}_j + \varepsilon_{j,i} - \varepsilon_{j,k}
+$$
+
+with $\varepsilon_{j,i} \sim N(0, \psi_i^2)$. The probability of preferring
+$i$ over $k$ is:
+
+$$
+P(Y_{j,ik}=1 \mid \boldsymbol{\theta}_j) =
+\Phi\left(\frac{-\gamma_{ik} + \lambda_i\mathbf{q}_i'\boldsymbol{\theta}_j -
+\lambda_k\mathbf{q}_k'\boldsymbol{\theta}_j}
+{\sqrt{\psi_i^2 + \psi_k^2}}\right)
+$$
+
+**Identification constraints:**
+- **Case A** ($I_b=2, D>2$): All $\psi_i^2 = 0.5$
+- **Case B** ($D=2, I_b=2$): First block $\lambda_i = 0.80$, all $\psi_i^2 = 0.5$
+- **General case**: Last item per block has $\psi_i^2 = 1.0$
+
+**When to use:** When you want a factor-analytic decomposition of
+forced-choice data with factor loadings and uniquenesses, rather than the
+item-level endorsement approach of FCMIRT.
+
+**Key reference:** Brown, A., & Maydeu-Olivares, A. (2011). Item response
+modeling of forced-choice questionnaires. *Educational and Psychological
+Measurement*, *71*(3), 460--502.
+
+---
+
+### FCDCM: Forced-Choice Diagnostic Classification Model
+
+A higher-order cognitive diagnostic model for paired-comparison FC data.
+Each block contains exactly two statements. The discrete attribute mastery
+profile $\boldsymbol{\alpha}_j$ is governed by a continuous higher-order
+trait $\theta_j$:
+
+$$
+P(\alpha_{jd} = 1 \mid \theta_j) =
+\frac{1}{1 + \exp[-(\delta_{1d}\theta_j - \delta_{1d}\delta_{0d})]}
+$$
+
+**Condensation rules:**
+- **DINA (conjunctive):** $\zeta_{ij} = \prod_{d: q_{id}=1} \alpha_{jd}$
+  (all required attributes must be mastered)
+- **DINO (disjunctive):** $\zeta_{ij} = 1 - \prod_{d: q_{id}=1} (1-\alpha_{jd})$
+  (at least one required attribute mastered)
+
+Block response probabilities are parameterized by $\eta_{0b}$ (base rate)
+and $\eta_{ABb}$ (joint-mastery bonus), with exact marginalization over
+all $2^D$ attribute profiles.
+
+**When to use:** Diagnostic classification with forced-choice format -
+classifying respondents into discrete attribute mastery profiles while
+avoiding response biases via the FC format.
+
+**Key references:**
+- Huang, H.-Y. (2022). Diagnostic classification model for forced-choice
+  items and noncognitive tests. *Educational and Psychological Measurement*,
+  *83*(1), 146--180.
+- Zhu, Y.-A., Xu, J., Wang, D., Li, X., Cai, Y., & Tu, D. (2024). A
+  ranking forced choice diagnostic classification model for psychological
+  assessment. *British Journal of Mathematical and Statistical Psychology*,
+  *78*, 617--646.
+
+---
+
+### FCGDINA: Forced-Choice GDINA
+
+FCGDINA combines a statement-level cognitive diagnostic model with a
+forced-choice block response model. The statement model may be GDINA, DINA,
+DINO, or ACDM. For a person with attribute profile
+$\boldsymbol{\alpha}_j \in \{0,1\}^D$, a statement-level endorsement
+probability is computed from the selected CDM design matrix. The block
+probabilities are then obtained by the same Luce--Plackett transformation
+used by FCMIRT and FCGGUM.
+
+The likelihood marginalizes over all $2^D$ attribute profiles:
+
+$$
+P(\mathbf{Y}_j) =
+\sum_{c=1}^{2^D}\pi_c
+\prod_{b=1}^{B}
+P(Y_{jb}\mid \boldsymbol{\alpha}_c, \boldsymbol{\delta}, \text{block}_b).
+$$
+
+**Important identification note:** Forced-choice data identify within-block
+utility contrasts, not absolute single-statement endorsement levels. In the
+Stan implementation, the nonidentified null space of the delta effects is
+removed and the reported coefficients use the package's identifying
+convention. EM and iStEM provide probability-scale CDM estimates under the
+same block response likelihood.
+
+**When to use:** Diagnostic classification with ranking, most-least, or
+best-only forced-choice blocks, especially when the statement-level CDM
+needs GDINA/ACDM flexibility rather than the paired-comparison FCDCM
+structure.
+
+**Key references:** de la Torre (2011) for GDINA; Luce (1959) and Plackett
+(1975) for the ranking kernel.
+
+---
+
+## Model Selection Guide
+
+| Criterion | Recommended Model |
+|---|---|
+| Binary responses, dominance | `fit.MIRT()` |
+| Polytomous (Likert), dominance | `fit.MGPCM()` |
+| Polytomous, ideal-point | `fit.MGGUM()` |
+| FC ranking, dominance items | `fit.FCMIRT()` |
+| FC ranking, ideal-point items | `fit.FCGGUM()` |
+| FC ranking, factor-analytic approach | `fit.TIRT()` |
+| FC paired comparison, diagnostic classification | `fit.FCDCM()` |
+| FC ranking/MOLE/PICK, diagnostic classification | `fit.FCGDINA()` |
+
+## Estimation Method Selection
+
+| Criterion | Recommended |
+|---|---|
+| Final inference, moderate N | Stan |
+| Large datasets, exploratory analysis | iStEM |
+| Need posterior SDs and R-hat | Stan |
+| Need fast point estimates + SEs | iStEM |
+| Complex model, multi-chain diagnostics | Stan |
+| Very large N (> 5000) or many items | iStEM |
+
+---
+
+## Goodness-of-Fit Framework
+
+All models use the limited-information M2 framework
+(Maydeu-Olivares & Joe, 2005, 2006):
+
+- **M2 statistic**: Tests the null of exact model fit using
+  univariate and bivariate margins.
+- **RMSEA**: Approximate fit index with 90% confidence interval.
+- **CFI / TLI**: Comparative fit against an independence baseline.
+- **SRMSR**: Standardized root mean square residual.
+- **Yen's Q3**: Local dependence diagnostics from residual correlations.
+
+For FC models, within-block pairwise residuals are excluded (by design,
+items in the same block are locally dependent through the ranking
+mechanism).
+
+## References
+
+Brown, A., & Maydeu-Olivares, A. (2011). Item response modeling of
+forced-choice questionnaires. *Educational and Psychological Measurement*,
+*71*(3), 460--502. <https://doi.org/10.1177/0013164410375112>
+
+de la Torre, J. (2011). The generalized DINA model framework.
+*Psychometrika*, *76*(2), 179--199.
+<https://doi.org/10.1007/s11336-011-9207-7>
+
+Huang, H.-Y. (2022). Diagnostic classification model for forced-choice
+items and noncognitive tests. *Educational and Psychological Measurement*,
+*83*(1), 146--180. <https://doi.org/10.1177/00131644211069906>
+
+Lee, P., Joo, S.-H., Stark, S., & Chernyshenko, O. S. (2018). GGUM-RANK
+statement and person parameter estimation with multidimensional forced
+choice triplets. *Applied Psychological Measurement*, *43*(3), 226--240.
+<https://doi.org/10.1177/0146621618768294>
+
+Luce, R. D. (1959). *Individual choice behavior: A theoretical analysis*.
+Wiley.
+
+Maydeu-Olivares, A., & Joe, H. (2005). Limited- and full-information
+estimation and goodness-of-fit testing in 2^n contingency tables: A unified
+framework. *Journal of the American Statistical Association*, *100*(471),
+1009--1020. <https://doi.org/10.1198/016214504000002069>
+
+Maydeu-Olivares, A., & Joe, H. (2006). Limited information goodness-of-fit
+testing in multidimensional contingency tables. *Psychometrika*, *71*(4),
+713--732. <https://doi.org/10.1007/s11336-005-1295-9>
+
+Muraki, E. (1992). A generalized partial credit model: Application of an EM
+algorithm. *Applied Psychological Measurement*, *16*(2), 159--176.
+<https://doi.org/10.1177/014662169201600206>
+
+Plackett, R. L. (1975). The analysis of permutations. *Journal of the Royal
+Statistical Society: Series C (Applied Statistics)*, *24*(2), 193--202.
+<https://doi.org/10.2307/2346567>
+
+Reckase, M. D. (2009). *Multidimensional Item Response Theory*. Springer.
+<https://doi.org/10.1007/978-0-387-89976-3>
+
+Roberts, J. S., Donoghue, J. R., & Laughlin, J. E. (2000). A general item
+response theory model for unfolding unidimensional polytomous responses.
+*Applied Psychological Measurement*, *24*(1), 3--32.
+<https://doi.org/10.1177/01466216000241001>
+
+Tu, N., Zhang, B., Angrave, L., Sun, T., & Neuman, M. (2023). Estimating the
+multidimensional generalized graded unfolding model with covariates using a
+Bayesian approach. *Journal of Intelligence*, *11*(8), 163.
+<https://doi.org/10.3390/jintelligence11080163>
+
+Zheng, C., Liu, J., Li, Y., Xu, P., Zhang, B., Wei, R., Zhang, W.,
+Liu, B., & Huang, J. (2024). A 2PLM-RANK multidimensional forced-choice
+model and its fast estimation algorithm. *Behavior Research Methods*,
+*56*(6), 6363--6388. <https://doi.org/10.3758/s13428-023-02315-x>
+
+Zhu, Y.-A., Xu, J., Wang, D., Li, X., Cai, Y., & Tu, D. (2024). A ranking
+forced choice diagnostic classification model for psychological assessment
+using forced choice questionnaires. *British Journal of Mathematical and
+Statistical Psychology*, *78*(2), 617--646.
+<https://doi.org/10.1111/bmsp.12376>

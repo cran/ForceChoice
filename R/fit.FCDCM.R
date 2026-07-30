@@ -1,0 +1,309 @@
+#' Fit the Forced-Choice Diagnostic Classification Model (FCDCM)
+#'
+#' @description
+#' Fits a higher-order cognitive diagnostic model for forced-choice (paired-
+#' comparison) data. Each block presents two statements, and the respondent
+#' selects the one they agree with more. The discrete attribute mastery
+#' profile \eqn{\boldsymbol{\alpha}_j} for each person is marginalized over
+#' all \eqn{2^D} possible patterns, linking a continuous higher-order latent
+#' trait \eqn{\theta_j} to the DCM condensation rule at the statement level.
+#'
+#' @section Model Specification:
+#'
+#' \strong{Higher-order latent structure.}
+#' A unidimensional continuous trait \eqn{\theta_j \sim N(0, 1)} governs the
+#' probability of mastering each attribute \eqn{d = 1, \dots, D}:
+#' \deqn{
+#'   P(\alpha_{jd} = 1 \mid \theta_j) =
+#'   \frac{1}{1 + \exp\bigl[-\bigl(\delta_{1d}\,\theta_j - \delta_{1d}\,\delta_{0d}\bigr)\bigr]},
+#' }
+#' where \eqn{\delta_{1d} > 0} is the discrimination and
+#' \eqn{\delta_{0d}} is the difficulty (threshold) for attribute \eqn{d}.
+#' Attributes are conditionally independent given \eqn{\theta_j}.
+#'
+#' \strong{Statement-level condensation.}
+#' For each statement \eqn{i = 1, \dots, I} with Q-vector
+#' \eqn{\mathbf{q}_i = (q_{i1}, \dots, q_{iD})'}, the latent mastery status
+#' \eqn{\zeta_{ij} \in \{0, 1\}} is determined by one of two condensation
+#' rules:
+#'
+#' \emph{DINA (conjunctive):}
+#' \deqn{
+#'   \zeta_{ij} = \prod_{d: q_{id} = 1} \alpha_{jd}.
+#' }
+#' All required attributes must be mastered.
+#'
+#' \emph{DINO (disjunctive):}
+#' \deqn{
+#'   \zeta_{ij} = 1 - \prod_{d: q_{id} = 1} (1 - \alpha_{jd}).
+#' }
+#' At least one required attribute must be mastered.
+#'
+#' \strong{Forced-choice block response.}
+#' Block \eqn{b} consists of two statements \eqn{(A_b, B_b)}. The probability
+#' that the respondent selects statement \eqn{A_b} over \eqn{B_b} follows
+#' the original FC-DCM specification and fixes equal-condensation
+#' probabilities to chance:
+#' \deqn{
+#'   P(\text{choose } A_b \mid \zeta_{A_b}, \zeta_{B_b}) =
+#'   \begin{cases}
+#'     \eta_{0b},        & \text{if } \zeta_{A_b} < \zeta_{B_b}, \\
+#'     0.5,              & \text{if } \zeta_{A_b} = \zeta_{B_b}, \\
+#'     0.5+\eta_{ABb},   & \text{if } \zeta_{A_b} > \zeta_{B_b}.
+#'   \end{cases}
+#' }
+#' with \eqn{0 < \eta_{0b} < 0.5} and \eqn{0 < \eta_{ABb} < 0.5}. Thus
+#' equal statement-level mastery produces chance choice, choosing the lower
+#' mastery statement has probability \eqn{\eta_{0b}}, and choosing the higher
+#' mastery statement has probability \eqn{0.5+\eta_{ABb}}. The probability
+#' of choosing \eqn{B_b} is the complement.
+#'
+#' The marginal likelihood integrates over all \eqn{2^D} attribute patterns:
+#' \deqn{
+#'   P(\mathbf{Y}_j \mid \theta_j) =
+#'   \sum_{\boldsymbol{\alpha} \in \{0,1\}^D}
+#'   P(\boldsymbol{\alpha} \mid \theta_j) \times
+#'   \prod_{b=1}^{B} P(Y_{jb} \mid \zeta_{A_b}, \zeta_{B_b}).
+#' }
+#'
+#' @section Design and Identifiability:
+#'
+#' A block with \eqn{\zeta_{A_b}=\zeta_{B_b}} contributes no direct
+#' information for distinguishing the two equal condensation states
+#' (both are fixed at 0.5).  For single-attribute statements and \eqn{D=2},
+#' if all blocks compare the same ordered attribute pair, the response
+#' distribution distinguishes \code{10} from \code{01} but leaves \code{00}
+#' and \code{11} to be separated only by the higher-order structural model.
+#' Good global fit can therefore coexist with weak profile classification.
+#'
+#' A forced-choice Q/block design should provide repeated cross-attribute
+#' comparisons, avoid pairing statements with identical Q-vectors, and keep
+#' each attribute represented in both statement positions.  A practical
+#' numerical target, consistent with the original FC-DCM simulation logic, is
+#' that each attribute appears multiple times as the first/predominant
+#' statement and multiple times as the second/inferior statement, with
+#' comparisons distributed across different attribute pairs.  The automatic
+#' simulator uses this balanced assembly rule when \code{block.items} is not
+#' supplied.
+#'
+#' @section Estimation Methods:
+#'
+#' \describe{
+#'   \item{\strong{Stan} (\code{method = "stan"}):}{
+#'     Full Bayesian inference via HMC. The discrete attribute profile is
+#'     exactly marginalized in the Stan likelihood.}
+#'   \item{\strong{iStEM} (\code{method = "iStEM"}):}{
+#'     Improved Stochastic EM. Person sampling considers the joint space of
+#'     \eqn{\theta_j} and \eqn{\boldsymbol{\alpha}_j}. Parameter updates
+#'     use closed-form or numerical optimization steps.}
+#' }
+#'
+#' @param data An \eqn{N \times B} forced-choice data matrix. Each cell must
+#'   be a two-statement ranking string such as \code{"1>3"} (first is
+#'   selected over second), or \code{0}/\code{1} coded responses where
+#'   \code{1} means selecting the first statement in the block.
+#' @param Q.matrix An \eqn{I \times D} binary Q-matrix for the statement-
+#'   level DCM. \eqn{q_{id} = 1} if attribute \eqn{d} is required by
+#'   statement \eqn{i}. Must have exactly \eqn{2B} rows.
+#' @param block.items A list of length \eqn{B}; each element is an integer
+#'   vector of the two global statement indices in that block. If \code{NULL},
+#'   parsed from \code{data} assuming \code{"A>B"} format where \code{A} and
+#'   \code{B} are statement indices.
+#' @param dcm.type Character vector (length 1 or \eqn{I}): \code{"DINA"}
+#'   (default, conjunctive) or \code{"DINO"} (disjunctive). Recycled if
+#'   scalar.
+#' @param method Estimation method: \code{"iStEM"} (default) or
+#'   \code{"stan"}.
+#' @param control.model A named list of model-level hyperparameters for the
+#'   higher-order DCM. Supported entries:
+#'   \describe{
+#'     \item{\code{delta1.mu}, \code{delta1.sigma}}{Prior mean and SD
+#'           for \eqn{\delta_{1d}} (higher-order discrimination parameters;
+#'           log-normal). Defaults: 0, 0.5. The log-normal prior constrains
+#'           \eqn{\delta_{1d} > 0}, reflecting the assumption that higher
+#'           \eqn{\theta_j} increases the probability of mastering each
+#'           attribute. Larger values of \eqn{\delta_{1d}} indicate stronger
+#'           relationships between the continuous trait \eqn{\theta_j} and
+#'           attribute mastery.}
+#'     \item{\code{delta0.mu}, \code{delta0.sigma}}{Prior mean and SD
+#'           for \eqn{\delta_{0d}} (higher-order difficulty/threshold
+#'           parameters; normal). Defaults: 0, 1. The probability of
+#'           mastering attribute \eqn{d} at \eqn{\theta_j = 0} is
+#'           \eqn{\{1+\exp(\delta_{1d}\delta_{0d})\}^{-1}}.
+#'           Higher values of \eqn{\delta_{0d}} indicate more difficult
+#'           attributes.}
+#'     \item{\code{eta0.mu}, \code{eta0.sigma}}{Prior mean and SD for
+#'           \eqn{\eta_{0b}} (truncated normal on (0, 0.5)). Defaults: 0.10,
+#'           0.10. The prior encodes the expectation that \eqn{\eta_{0b}}
+#'           is small (rarely choose the lower-mastery statement).}
+#'     \item{\code{etaAB.mu}, \code{etaAB.sigma}}{Prior mean and SD for
+#'           \eqn{\eta_{ABb}} (truncated normal on (0, 0.5)). Defaults: 0.30,
+#'           0.10. The prior encodes the expectation that \eqn{\eta_{ABb}}
+#'           is larger (usually choose the higher-mastery statement).}
+#'     \item{\code{use.prior}}{Logical; if \code{TRUE} (default), the
+#'           normal priors on the block response parameters are applied
+#'           during iStEM estimation. Set to \code{FALSE} to use flat
+#'           likelihood updates.}
+#'     \item{\code{par}}{Optional initial \eqn{B \times 2} matrix for iStEM
+#'           with columns \code{eta0} and \code{etaAB}.}
+#'     \item{\code{L}}{Theta grid size for numerical integration and
+#'           the unidimensional iStEM theta Gibbs sampler. Default: 61.}
+#'     \item{\code{theta.lower}, \code{theta.upper}}{Bounds for the
+#'           unidimensional theta grid used by marginal log-likelihood
+#'           computation and iStEM block Gibbs sampling. Defaults: -6, 6.}
+#'   }
+#' @param control.method A named list of method-specific tuning parameters.
+#'   Common entries (used by both Stan and iStEM):
+#'   \describe{
+#'     \item{\code{cores}}{Number of CPU cores for parallel chains
+#'           (Stan) or ignored (iStEM). Default: the number of
+#'           \code{chains}.}
+#'     \item{\code{vis}}{Logical; if \code{TRUE} (default), prints progress
+#'           information to the console.}
+#'     \item{\code{seed}}{Random seed for reproducibility.
+#'           Default: a random integer.}
+#'   }
+#'   Stan-specific entries:
+#'   \describe{
+#'     \item{\code{chains}}{Number of MCMC chains (default: 2).}
+#'     \item{\code{iter}}{Total iterations per chain (default: 5000).}
+#'     \item{\code{warmup}}{Warmup/burn-in iterations per chain
+#'           (default: \code{iter / 2}).}
+#'     \item{\code{thin}}{Thinning interval (default: 1).}
+#'     \item{\code{init}}{Initial values: \code{"random"} (default)
+#'           for uniform(-2, 2) initialization, or a list of initial
+#'           values per chain.}
+#'     \item{\code{algorithm}}{MCMC algorithm: \code{"HMC"} (default),
+#'           \code{"HMC"}, or \code{"Fixed_param"}.}
+#'     \item{\code{adapt_delta}}{Target average acceptance probability
+#'           (NUTS; default: 0.95). The discrete attribute-profile
+#'           marginalization can create a challenging posterior;
+#'           consider increasing to 0.9--0.95 if divergences occur.}
+#'     \item{\code{max_treedepth}}{Maximum tree depth (NUTS; default: 10).
+#'           Increase if "max treedepth exceeded" warnings appear.}
+#'     \item{\code{stepsize}}{Initial step size for the leapfrog
+#'           integrator (auto-tuned by Stan if not set).}
+#'     \item{\code{int_time}}{Total integration time for HMC trajectories
+#'           (only when \code{algorithm = "HMC"}).}
+#'     \item{\code{metric}}{Mass matrix type: \code{"unit_e"},
+#'           \code{"diag_e"} (default), or \code{"dense_e"}.}
+#'     \item{\code{adapt_engaged}}{Logical; if \code{TRUE} (default),
+#'           warmup adaptation is enabled.}
+#'     \item{\code{adapt_init_buffer}, \code{adapt_term_buffer},
+#'           \code{adapt_window}}{Warmup adaptation scheduling parameters
+#'           (defaults: 25, 50, 25).}
+#'   }
+#'   iStEM-specific entries:
+#'   \describe{
+#'     \item{\code{M}}{Number of burn-in batches retained for Geweke
+#'           convergence diagnosis (default: 10; must be \eqn{\ge 2}).}
+#'     \item{\code{B}}{Batch size: MCMC iterations per batch (default: 20).}
+#'     \item{\code{burnin.maxitr}}{Maximum burn-in batches (default: 100).}
+#'     \item{\code{maxitr}}{Maximum total batches (default: 2000).}
+#'     \item{\code{eps1}}{Geweke z-score convergence threshold for
+#'           burn-in (default: 1.5).}
+#'     \item{\code{eps2}}{Monte Carlo error tolerance for the final
+#'           chain (default: 0.4).}
+#'     \item{\code{frac1}, \code{frac2}}{Fractions for the Geweke
+#'           diagnostic (defaults: 0.1, 0.5).}
+#'     \item{\code{optim.maxit}}{Maximum iterations for parameter
+#'           optimization steps (default: 50). In FCDCM iStEM, the
+#'           higher-order \eqn{\delta} parameters and block \eqn{\eta}
+#'           parameters are updated via closed-form or numerical
+#'           optimization.}
+#'     \item{\code{fix.corr}}{Logical; in the FCDCM, the latent trait
+#'           is unidimensional, so this parameter has no effect
+#'           (default: \code{FALSE}).}
+#'     \item{\code{estimate.se}}{Logical; if \code{TRUE} (default),
+#'           standard errors are computed from the final Monte Carlo
+#'           chain.}
+#'   }
+#'
+#' @return An object of class \code{"FCDCM"} containing:
+#' \describe{
+#'   \item{\code{npar}}{Number of free parameters (\eqn{2D + 2B}).}
+#'   \item{\code{method}}{\code{"stan"} or \code{"iStEM"}.}
+#'   \item{\code{theta}}{List with \code{est}, \code{se}, \code{Rhat}
+#'         (\eqn{N \times 1}); higher-order trait estimates.}
+#'   \item{\code{delta}}{List with \code{est}, \code{se}, \code{Rhat}
+#'         (\eqn{D \times 2}); higher-order \eqn{\delta_1}, \eqn{\delta_0}
+#'         parameters.}
+#'   \item{\code{par}}{List with \code{est}, \code{se}, \code{Rhat}
+#'         (\eqn{B \times 2}); block response parameters
+#'         \code{eta0} and \code{etaAB}.}
+#'   \item{\code{alpha}}{List with \code{est}, \code{se}, \code{Rhat}, and
+#'         \code{prob}; \code{est} is the binary classified attribute profile
+#'         (\eqn{N \times D}) and \code{prob} contains posterior mastery
+#'         probabilities.}
+#'   \item{\code{class.post}}{Posterior probabilities for all \eqn{2^D}
+#'         attribute profiles.}
+#'   \item{\code{alpha.patterns}, \code{zeta.patterns}}{Full enumeration
+#'         of attribute mastery patterns and their condensation outputs.}
+#'   \item{\code{logLik}}{Marginal log-likelihood (class \code{"logLik"}).}
+#' }
+#'
+#' @references
+#' de la Torre, J., & Douglas, J. A. (2004). Higher-order latent trait
+#'   models for cognitive diagnosis. \emph{Psychometrika}, 69(3), 333--353.
+#'   \doi{10.1007/BF02295640}
+#'
+#' Junker, B. W., & Sijtsma, K. (2001). Cognitive assessment models with
+#'   few assumptions, and connections with nonparametric item response
+#'   theory. \emph{Applied Psychological Measurement}, 25(3), 258--272.
+#'
+#' @seealso
+#' \code{\link{sim.data.FCDCM}}, \code{\link{get.fit.index.FCDCM}},
+#' \code{\link{logLik.FCDCM}}
+#'
+#' @examples
+#' sim <- sim.data.FCDCM(N.person = 20, N.block = 3, D = 2,
+#'                       dcm.type = "DINA")
+#' fit <- fit.FCDCM(sim$data, Q.matrix = sim$Q.matrix,
+#'                  block.items = sim$block.items,
+#'                  dcm.type = "DINA", method = "iStEM",
+#'                  control.method = list(
+#'                    seed = 123, vis = FALSE,
+#'                    M = 2, B = 2, burnin.maxitr = 2,
+#'                    maxitr = 3, eps1 = 10, eps2 = 10,
+#'                    estimate.se = FALSE))
+#' head(fit$alpha$est)                # binary attribute profiles (0/1)
+#' head(fit$alpha$prob)               # marginal mastery probabilities
+#' gof <- get.fit.index(fit)
+#' summary(gof)
+#'
+#' @export
+fit.FCDCM <- function(data, Q.matrix, block.items = NULL,
+                      dcm.type = "DINA",
+                      method = c("iStEM", "stan"),
+                      control.model = NULL,
+                      control.method = NULL) {
+  call <- match.call()
+  method <- match.arg(method)
+
+  block.items <- resolve_block_items(block.items, data)
+
+  control.model  <- fc_as_control_list(control.model, "control.model")
+  control.method <- fc_as_control_list(control.method, "control.method")
+
+  if (method == "stan") {
+    return(fit.FCDCM.stan(
+      data = data,
+      Q.matrix = Q.matrix,
+      block.items = block.items,
+      dcm.type = dcm.type,
+      control.model = control.model,
+      control.method = control.method,
+      .call = call
+    ))
+  }
+
+  fit.FCDCM.iStEM(
+    data = data,
+    Q.matrix = Q.matrix,
+    block.items = block.items,
+    dcm.type = dcm.type,
+    control.model = control.model,
+    control.method = control.method,
+    .call = call
+  )
+}

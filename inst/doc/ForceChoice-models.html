@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+<meta name="author" content="Haijiang Qin &amp; Lei Guo" />
+
+<meta name="date" content="2026-07-22" />
+
+<title>ForceChoice Model Theory and Selection Guide</title>
+
+<script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
+// be compatible with the behavior of Pandoc < 2.8).
+document.addEventListener('DOMContentLoaded', function(e) {
+  var hs = document.querySelectorAll("div.section[class*='level'] > :first-child");
+  var i, h, a;
+  for (i = 0; i < hs.length; i++) {
+    h = hs[i];
+    if (!/^h[1-6]$/i.test(h.tagName)) continue;  // it should be a header h1-h6
+    a = h.attributes;
+    while (a.length > 0) h.removeAttribute(a[0].name);
+  }
+});
+</script>
+
+<style type="text/css">
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+span.underline{text-decoration: underline;}
+div.column{display: inline-block; vertical-align: top; width: 50%;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+</style>
+
+
+
+
+
+
+
+<style type="text/css">body {
+background-color: #fff;
+margin: 1em auto;
+max-width: 700px;
+overflow: visible;
+padding-left: 2em;
+padding-right: 2em;
+font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+font-size: 14px;
+line-height: 1.35;
+}
+#TOC {
+clear: both;
+margin: 0 0 10px 10px;
+padding: 4px;
+width: 400px;
+border: 1px solid #CCCCCC;
+border-radius: 5px;
+background-color: #f6f6f6;
+font-size: 13px;
+line-height: 1.3;
+}
+#TOC .toctitle {
+font-weight: bold;
+font-size: 15px;
+margin-left: 5px;
+}
+#TOC ul {
+padding-left: 40px;
+margin-left: -1.5em;
+margin-top: 5px;
+margin-bottom: 5px;
+}
+#TOC ul ul {
+margin-left: -2em;
+}
+#TOC li {
+line-height: 16px;
+}
+table {
+margin: 1em auto;
+border-width: 1px;
+border-color: #DDDDDD;
+border-style: outset;
+border-collapse: collapse;
+}
+table th {
+border-width: 2px;
+padding: 5px;
+border-style: inset;
+}
+table td {
+border-width: 1px;
+border-style: inset;
+line-height: 18px;
+padding: 5px 5px;
+}
+table, table th, table td {
+border-left-style: none;
+border-right-style: none;
+}
+table thead, table tr.even {
+background-color: #f7f7f7;
+}
+p {
+margin: 0.5em 0;
+}
+blockquote {
+background-color: #f6f6f6;
+padding: 0.25em 0.75em;
+}
+hr {
+border-style: solid;
+border: none;
+border-top: 1px solid #777;
+margin: 28px 0;
+}
+dl {
+margin-left: 0;
+}
+dl dd {
+margin-bottom: 13px;
+margin-left: 13px;
+}
+dl dt {
+font-weight: bold;
+}
+ul {
+margin-top: 0;
+}
+ul li {
+list-style: circle outside;
+}
+ul ul {
+margin-bottom: 0;
+}
+pre, code {
+background-color: #f7f7f7;
+border-radius: 3px;
+color: #333;
+white-space: pre-wrap; 
+}
+pre {
+border-radius: 3px;
+margin: 5px 0px 10px 0px;
+padding: 10px;
+}
+pre:not([class]) {
+background-color: #f7f7f7;
+}
+code {
+font-family: Consolas, Monaco, 'Courier New', monospace;
+font-size: 85%;
+}
+p > code, li > code {
+padding: 2px 0px;
+}
+div.figure {
+text-align: center;
+}
+img {
+background-color: #FFFFFF;
+padding: 2px;
+border: 1px solid #DDDDDD;
+border-radius: 3px;
+border: 1px solid #CCCCCC;
+margin: 0 5px;
+}
+h1 {
+margin-top: 0;
+font-size: 35px;
+line-height: 40px;
+}
+h2 {
+border-bottom: 4px solid #f7f7f7;
+padding-top: 10px;
+padding-bottom: 2px;
+font-size: 145%;
+}
+h3 {
+border-bottom: 2px solid #f7f7f7;
+padding-top: 10px;
+font-size: 120%;
+}
+h4 {
+border-bottom: 1px solid #f7f7f7;
+margin-left: 8px;
+font-size: 105%;
+}
+h5, h6 {
+border-bottom: 1px solid #ccc;
+font-size: 105%;
+}
+a {
+color: #0033dd;
+text-decoration: none;
+}
+a:hover {
+color: #6666ff; }
+a:visited {
+color: #800080; }
+a:visited:hover {
+color: #BB00BB; }
+a[href^="http:"] {
+text-decoration: underline; }
+a[href^="https:"] {
+text-decoration: underline; }
+
+code > span.kw { color: #555; font-weight: bold; } 
+code > span.dt { color: #902000; } 
+code > span.dv { color: #40a070; } 
+code > span.bn { color: #d14; } 
+code > span.fl { color: #d14; } 
+code > span.ch { color: #d14; } 
+code > span.st { color: #d14; } 
+code > span.co { color: #888888; font-style: italic; } 
+code > span.ot { color: #007020; } 
+code > span.al { color: #ff0000; font-weight: bold; } 
+code > span.fu { color: #900; font-weight: bold; } 
+code > span.er { color: #a61717; background-color: #e3d2d2; } 
+</style>
+
+
+
+
+</head>
+
+<body>
+
+
+
+
+<h1 class="title toc-ignore">ForceChoice Model Theory and Selection
+Guide</h1>
+<h4 class="author">Haijiang Qin &amp; Lei Guo</h4>
+<h4 class="date">2026-07-22</h4>
+
+
+
+<div id="overview" class="section level2">
+<h2>Overview</h2>
+<p>This vignette describes the theoretical foundations of the eight
+model families in <strong>ForceChoice</strong> and provides guidance for
+model selection. Core models support Stan (full Bayesian HMC) and iStEM
+(iterative Stochastic EM); FCGDINA additionally supports deterministic
+EM.</p>
+<p>The equations below use the parameterizations implemented in the
+package. For several families, especially MGPCM and MGGUM, this means
+the notation is not a verbatim copy of the original unidimensional
+source article. The cited papers identify the model family and
+response-process assumptions; the implementation details are those
+exposed by the corresponding <code>fit.*()</code> documentation.</p>
+</div>
+<div id="traditional-single-stimulus-models" class="section level2">
+<h2>Traditional (Single-Stimulus) Models</h2>
+<div id="mirt-multidimensional-item-response-theory" class="section level3">
+<h3>MIRT: Multidimensional Item Response Theory</h3>
+<p>The MIRT model extends unidimensional IRT to multiple latent
+dimensions. For binary response <span class="math inline">\(Y_{ij} \in
+\{0, 1\}\)</span>, the item response function is:</p>
+<p><span class="math display">\[
+P(Y_{ij}=1 \mid \boldsymbol{\theta}_j) = c_i + (d_i - c_i) \times
+\frac{1}{1 + \exp[-( \mathbf{a}_i&#39; \boldsymbol{\theta}_j - b_i)]}
+\]</span></p>
+<p>where <span class="math inline">\(\mathbf{a}_i = (a_{i1}, \ldots,
+a_{iD})&#39;\)</span> is the discrimination vector, <span class="math inline">\(b_i\)</span> is the difficulty (intercept), <span class="math inline">\(c_i\)</span> is the lower asymptote
+(pseudo-guessing), and <span class="math inline">\(d_i\)</span> is the
+upper asymptote.</p>
+<p><strong>Model variants:</strong></p>
+<table>
+<thead>
+<tr class="header">
+<th>Model</th>
+<th>Free Parameters</th>
+<th>Fixed</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>M1PL (Rasch)</td>
+<td><span class="math inline">\(b_i\)</span></td>
+<td><span class="math inline">\(a_{id} = q_{id}\)</span>, <span class="math inline">\(c_i=0\)</span>, <span class="math inline">\(d_i=1\)</span></td>
+</tr>
+<tr class="even">
+<td>M2PL</td>
+<td><span class="math inline">\(a_{id}, b_i\)</span></td>
+<td><span class="math inline">\(c_i=0\)</span>, <span class="math inline">\(d_i=1\)</span></td>
+</tr>
+<tr class="odd">
+<td>M3PL</td>
+<td><span class="math inline">\(a_{id}, b_i, c_i\)</span></td>
+<td><span class="math inline">\(d_i=1\)</span></td>
+</tr>
+<tr class="even">
+<td>M4PL</td>
+<td><span class="math inline">\(a_{id}, b_i, c_i, d_i\)</span></td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<p><strong>When to use:</strong> Binary response data where items vary
+in discrimination and difficulty. Dominance model: higher trait always
+increases endorsement probability.</p>
+<p><strong>Key reference:</strong> Reckase, M. D. (2009).
+<em>Multidimensional Item Response Theory</em>. Springer.</p>
+<hr />
+</div>
+<div id="mgpcm-multidimensional-generalized-partial-credit-model" class="section level3">
+<h3>MGPCM: Multidimensional Generalized Partial Credit Model</h3>
+<p>For polytomous responses <span class="math inline">\(Y_{ij} \in \{0,
+1, \ldots, K_i-1\}\)</span>, <strong>ForceChoice</strong> implements a
+multidimensional softmax parameterization:</p>
+<p><span class="math display">\[
+P(Y_{ij} = k \mid \boldsymbol{\theta}_j) =
+\frac{\exp\{k\eta_{ij} + d_{ik}\}}
+{\sum_{r=0}^{K_i-1}\exp\{r\eta_{ij} + d_{ir}\}},
+\qquad
+\eta_{ij}=\sum_{d=1}^{D}a_{id}\theta_{jd}.
+\]</span></p>
+<p>The <span class="math inline">\(d_{ik}\)</span> values are category
+intercepts rather than cumulative step difficulties; <span class="math inline">\(d_{i0} \equiv 0\)</span> is fixed for
+identification. This implementation nests the generalized partial credit
+model of Muraki (1992) in the unidimensional case.</p>
+<p><strong>When to use:</strong> Polytomous (ordered category) data such
+as Likert-type responses. A dominance model: higher trait implies higher
+category.</p>
+<p><strong>Key reference:</strong> Muraki, E. (1992). A generalized
+partial credit model: Application of an EM algorithm. <em>Applied
+Psychological Measurement</em>, <em>16</em>(2), 159–176.</p>
+<hr />
+</div>
+<div id="mggum-multidimensional-generalized-graded-unfolding-model" class="section level3">
+<h3>MGGUM: Multidimensional Generalized Graded Unfolding Model</h3>
+<p>The MGGUM is an ideal-point (unfolding) model where endorsement is
+governed by distance between the person and item locations. In
+<strong>ForceChoice</strong>, define</p>
+<p><span class="math display">\[
+r_{ij} =
+\left[
+  \sum_{d=1}^{D} a_{id}^2(\theta_{jd}-\delta_{id})^2
+\right]^{1/2},
+\qquad
+S_i = \sum_{d=1}^{D} a_{id},
+\]</span></p>
+<p>and let <span class="math inline">\(\tau_{i0}=0\)</span>, <span class="math inline">\(\psi_{ik}=S_i\sum_{v=0}^{k}\tau_{iv}\)</span>, and
+<span class="math inline">\(M_i=2K_i-1\)</span>. Then</p>
+<p><span class="math display">\[
+P(Y_{ij}=k \mid \boldsymbol{\theta}_j)=
+\frac{
+  \exp\{kr_{ij}-\psi_{ik}\}+
+  \exp\{(M_i-k)r_{ij}-\psi_{ik}\}
+}{
+  \sum_{r=0}^{K_i-1}
+  [\exp\{rr_{ij}-\psi_{ir}\}+
+   \exp\{(M_i-r)r_{ij}-\psi_{ir}\}]
+}.
+\]</span></p>
+<p>The signed Q-matrix (<span class="math inline">\(q_{id} \in \{-1, 0,
+1\}\)</span>) indicates active dimensions and the side of the latent
+continuum on which the item location lies. The sign controls <span class="math inline">\(\delta_{id}\)</span>, not the sign of the
+discrimination parameter.</p>
+<p><strong>When to use:</strong> Attitude/ preference measurement where
+both ends of the trait continuum can lead to disagreement (e.g., “I like
+moderate temperatures”: both extreme cold-lovers and heat-lovers
+disagree).</p>
+<p><strong>Key references:</strong> - Roberts, J. S., Donoghue, J. R.,
+&amp; Laughlin, J. E. (2000). A general item response theory model for
+unfolding unidimensional polytomous responses. <em>Applied Psychological
+Measurement</em>, <em>24</em>(1), 3–32. - Tu, N., Zhang, B., Angrave,
+L., Sun, T., &amp; Neuman, M. (2023). Estimating the Multidimensional
+Generalized Graded Unfolding Model with covariates using a Bayesian
+approach. <em>Journal of Intelligence</em>, <em>11</em>, 163.</p>
+<hr />
+</div>
+</div>
+<div id="forced-choice-comparative-models" class="section level2">
+<h2>Forced-Choice (Comparative) Models</h2>
+<p>Forced-choice (FC) formats ask respondents to compare items within
+blocks rather than rating items in isolation. This can reduce
+response-style biases such as acquiescence, social desirability, and
+extreme responding, but it introduces comparative/ipsative information
+with model-specific identification requirements.</p>
+<div id="fcmirt-forced-choice-mirt" class="section level3">
+<h3>FCMIRT: Forced-Choice MIRT</h3>
+<p>Item-level endorsement follows the MIRT model (1PL–4PL). At the block
+level, <strong>ForceChoice</strong> uses a sequential Luce–Plackett
+ranking kernel with utilities equal to the logit of the item-level
+endorsement probability:</p>
+<p><span class="math display">\[
+u_i(\boldsymbol{\theta}_j) =
+\log\left[\frac{P_i(\boldsymbol{\theta}_j)}
+{1-P_i(\boldsymbol{\theta}_j)}\right].
+\]</span></p>
+<p><span class="math display">\[
+P(i_{(1)} \succ \cdots \succ i_{(K_b)} \mid \boldsymbol{\theta}_j) =
+\prod_{m=1}^{K_b-1}
+\frac{\exp\{u_{i_{(m)}}(\boldsymbol{\theta}_j)\}}
+{\sum_{r=m}^{K_b}\exp\{u_{i_{(r)}}(\boldsymbol{\theta}_j)\}}.
+\]</span></p>
+<p><strong>Identification:</strong> Block difficulties sum to zero:
+<span class="math inline">\(\sum_{i \in b} b_i = 0\)</span>.</p>
+<p><strong>FC types:</strong> - <strong>RANK</strong>: Full ranking of
+all items within each block - <strong>MOLE</strong>: Only most and least
+preferred items identified - <strong>PICK</strong>: Only most preferred
+item identified</p>
+<p><strong>When to use:</strong> Forced-choice questionnaires with
+dominance items (personality, vocational preferences).</p>
+<p><strong>Key reference:</strong> Zheng, C., Liu, J., Li, Y., et
+al. (2024). A 2PLM-RANK multidimensional forced-choice model and its
+fast estimation algorithm. <em>Behavior Research Methods</em>,
+<em>56</em>, 6363–6388.</p>
+<p><strong>Ranking-model references:</strong> Luce (1959) and Plackett
+(1975).</p>
+<hr />
+</div>
+<div id="fcggum-forced-choice-ggum" class="section level3">
+<h3>FCGGUM: Forced-Choice GGUM</h3>
+<p>Combines the GGUM ideal-point model at the item level with the same
+sequential Luce–Plackett ranking kernel used by FCMIRT. The block-level
+ranking probability uses the logit of the GGUM endorsement probability
+as the statement utility.</p>
+<p><strong>Identification:</strong> Same block-level sum-to-zero
+constraint as FCMIRT. Signed Q-matrix indicates both dimension
+membership and statement direction.</p>
+<p><strong>When to use:</strong> Forced-choice questionnaires with
+ideal-point/unfolding items (e.g., personality items where both extremes
+disagree).</p>
+<p><strong>Key reference:</strong> Lee, P., Joo, S.-H., Stark, S., &amp;
+Chernyshenko, O. S. (2018). GGUM-RANK statement and person parameter
+estimation with multidimensional forced choice triplets. <em>Applied
+Psychological Measurement</em>, <em>43</em>(3), 226–240.</p>
+<hr />
+</div>
+<div id="tirt-thurstonian-irt-for-forced-choice" class="section level3">
+<h3>TIRT: Thurstonian IRT for Forced-Choice</h3>
+<p>The TIRT model works directly with pairwise comparisons via a probit
+link. For each pair <span class="math inline">\((i, k)\)</span> in block
+<span class="math inline">\(b\)</span>, the latent comparative judgment
+is:</p>
+<p><span class="math display">\[
+y_{j,ik}^* = -\gamma_{ik} + \lambda_i
+\mathbf{q}_i&#39;\boldsymbol{\theta}_j -
+\lambda_k \mathbf{q}_k&#39;\boldsymbol{\theta}_j + \varepsilon_{j,i} -
+\varepsilon_{j,k}
+\]</span></p>
+<p>with <span class="math inline">\(\varepsilon_{j,i} \sim N(0,
+\psi_i^2)\)</span>. The probability of preferring <span class="math inline">\(i\)</span> over <span class="math inline">\(k\)</span> is:</p>
+<p><span class="math display">\[
+P(Y_{j,ik}=1 \mid \boldsymbol{\theta}_j) =
+\Phi\left(\frac{-\gamma_{ik} +
+\lambda_i\mathbf{q}_i&#39;\boldsymbol{\theta}_j -
+\lambda_k\mathbf{q}_k&#39;\boldsymbol{\theta}_j}
+{\sqrt{\psi_i^2 + \psi_k^2}}\right)
+\]</span></p>
+<p><strong>Identification constraints:</strong> - <strong>Case
+A</strong> (<span class="math inline">\(I_b=2, D&gt;2\)</span>): All
+<span class="math inline">\(\psi_i^2 = 0.5\)</span> - <strong>Case
+B</strong> (<span class="math inline">\(D=2, I_b=2\)</span>): First
+block <span class="math inline">\(\lambda_i = 0.80\)</span>, all <span class="math inline">\(\psi_i^2 = 0.5\)</span> - <strong>General
+case</strong>: Last item per block has <span class="math inline">\(\psi_i^2 = 1.0\)</span></p>
+<p><strong>When to use:</strong> When you want a factor-analytic
+decomposition of forced-choice data with factor loadings and
+uniquenesses, rather than the item-level endorsement approach of
+FCMIRT.</p>
+<p><strong>Key reference:</strong> Brown, A., &amp; Maydeu-Olivares, A.
+(2011). Item response modeling of forced-choice questionnaires.
+<em>Educational and Psychological Measurement</em>, <em>71</em>(3),
+460–502.</p>
+<hr />
+</div>
+<div id="fcdcm-forced-choice-diagnostic-classification-model" class="section level3">
+<h3>FCDCM: Forced-Choice Diagnostic Classification Model</h3>
+<p>A higher-order cognitive diagnostic model for paired-comparison FC
+data. Each block contains exactly two statements. The discrete attribute
+mastery profile <span class="math inline">\(\boldsymbol{\alpha}_j\)</span> is governed by a
+continuous higher-order trait <span class="math inline">\(\theta_j\)</span>:</p>
+<p><span class="math display">\[
+P(\alpha_{jd} = 1 \mid \theta_j) =
+\frac{1}{1 + \exp[-(\delta_{1d}\theta_j - \delta_{1d}\delta_{0d})]}
+\]</span></p>
+<p><strong>Condensation rules:</strong> - <strong>DINA
+(conjunctive):</strong> <span class="math inline">\(\zeta_{ij} =
+\prod_{d: q_{id}=1} \alpha_{jd}\)</span> (all required attributes must
+be mastered) - <strong>DINO (disjunctive):</strong> <span class="math inline">\(\zeta_{ij} = 1 - \prod_{d: q_{id}=1}
+(1-\alpha_{jd})\)</span> (at least one required attribute mastered)</p>
+<p>Block response probabilities are parameterized by <span class="math inline">\(\eta_{0b}\)</span> (base rate) and <span class="math inline">\(\eta_{ABb}\)</span> (joint-mastery bonus), with
+exact marginalization over all <span class="math inline">\(2^D\)</span>
+attribute profiles.</p>
+<p><strong>When to use:</strong> Diagnostic classification with
+forced-choice format - classifying respondents into discrete attribute
+mastery profiles while avoiding response biases via the FC format.</p>
+<p><strong>Key references:</strong> - Huang, H.-Y. (2022). Diagnostic
+classification model for forced-choice items and noncognitive tests.
+<em>Educational and Psychological Measurement</em>, <em>83</em>(1),
+146–180. - Zhu, Y.-A., Xu, J., Wang, D., Li, X., Cai, Y., &amp; Tu, D.
+(2024). A ranking forced choice diagnostic classification model for
+psychological assessment. <em>British Journal of Mathematical and
+Statistical Psychology</em>, <em>78</em>, 617–646.</p>
+<hr />
+</div>
+<div id="fcgdina-forced-choice-gdina" class="section level3">
+<h3>FCGDINA: Forced-Choice GDINA</h3>
+<p>FCGDINA combines a statement-level cognitive diagnostic model with a
+forced-choice block response model. The statement model may be GDINA,
+DINA, DINO, or ACDM. For a person with attribute profile <span class="math inline">\(\boldsymbol{\alpha}_j \in \{0,1\}^D\)</span>, a
+statement-level endorsement probability is computed from the selected
+CDM design matrix. The block probabilities are then obtained by the same
+Luce–Plackett transformation used by FCMIRT and FCGGUM.</p>
+<p>The likelihood marginalizes over all <span class="math inline">\(2^D\)</span> attribute profiles:</p>
+<p><span class="math display">\[
+P(\mathbf{Y}_j) =
+\sum_{c=1}^{2^D}\pi_c
+\prod_{b=1}^{B}
+P(Y_{jb}\mid \boldsymbol{\alpha}_c, \boldsymbol{\delta},
+\text{block}_b).
+\]</span></p>
+<p><strong>Important identification note:</strong> Forced-choice data
+identify within-block utility contrasts, not absolute single-statement
+endorsement levels. In the Stan implementation, the nonidentified null
+space of the delta effects is removed and the reported coefficients use
+the package’s identifying convention. EM and iStEM provide
+probability-scale CDM estimates under the same block response
+likelihood.</p>
+<p><strong>When to use:</strong> Diagnostic classification with ranking,
+most-least, or best-only forced-choice blocks, especially when the
+statement-level CDM needs GDINA/ACDM flexibility rather than the
+paired-comparison FCDCM structure.</p>
+<p><strong>Key references:</strong> de la Torre (2011) for GDINA; Luce
+(1959) and Plackett (1975) for the ranking kernel.</p>
+<hr />
+</div>
+</div>
+<div id="model-selection-guide" class="section level2">
+<h2>Model Selection Guide</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Criterion</th>
+<th>Recommended Model</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Binary responses, dominance</td>
+<td><code>fit.MIRT()</code></td>
+</tr>
+<tr class="even">
+<td>Polytomous (Likert), dominance</td>
+<td><code>fit.MGPCM()</code></td>
+</tr>
+<tr class="odd">
+<td>Polytomous, ideal-point</td>
+<td><code>fit.MGGUM()</code></td>
+</tr>
+<tr class="even">
+<td>FC ranking, dominance items</td>
+<td><code>fit.FCMIRT()</code></td>
+</tr>
+<tr class="odd">
+<td>FC ranking, ideal-point items</td>
+<td><code>fit.FCGGUM()</code></td>
+</tr>
+<tr class="even">
+<td>FC ranking, factor-analytic approach</td>
+<td><code>fit.TIRT()</code></td>
+</tr>
+<tr class="odd">
+<td>FC paired comparison, diagnostic classification</td>
+<td><code>fit.FCDCM()</code></td>
+</tr>
+<tr class="even">
+<td>FC ranking/MOLE/PICK, diagnostic classification</td>
+<td><code>fit.FCGDINA()</code></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="estimation-method-selection" class="section level2">
+<h2>Estimation Method Selection</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Criterion</th>
+<th>Recommended</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Final inference, moderate N</td>
+<td>Stan</td>
+</tr>
+<tr class="even">
+<td>Large datasets, exploratory analysis</td>
+<td>iStEM</td>
+</tr>
+<tr class="odd">
+<td>Need posterior SDs and R-hat</td>
+<td>Stan</td>
+</tr>
+<tr class="even">
+<td>Need fast point estimates + SEs</td>
+<td>iStEM</td>
+</tr>
+<tr class="odd">
+<td>Complex model, multi-chain diagnostics</td>
+<td>Stan</td>
+</tr>
+<tr class="even">
+<td>Very large N (&gt; 5000) or many items</td>
+<td>iStEM</td>
+</tr>
+</tbody>
+</table>
+<hr />
+</div>
+<div id="goodness-of-fit-framework" class="section level2">
+<h2>Goodness-of-Fit Framework</h2>
+<p>All models use the limited-information M2 framework (Maydeu-Olivares
+&amp; Joe, 2005, 2006):</p>
+<ul>
+<li><strong>M2 statistic</strong>: Tests the null of exact model fit
+using univariate and bivariate margins.</li>
+<li><strong>RMSEA</strong>: Approximate fit index with 90% confidence
+interval.</li>
+<li><strong>CFI / TLI</strong>: Comparative fit against an independence
+baseline.</li>
+<li><strong>SRMSR</strong>: Standardized root mean square residual.</li>
+<li><strong>Yen’s Q3</strong>: Local dependence diagnostics from
+residual correlations.</li>
+</ul>
+<p>For FC models, within-block pairwise residuals are excluded (by
+design, items in the same block are locally dependent through the
+ranking mechanism).</p>
+</div>
+<div id="references" class="section level2">
+<h2>References</h2>
+<p>Brown, A., &amp; Maydeu-Olivares, A. (2011). Item response modeling
+of forced-choice questionnaires. <em>Educational and Psychological
+Measurement</em>, <em>71</em>(3), 460–502. <a href="https://doi.org/10.1177/0013164410375112" class="uri">https://doi.org/10.1177/0013164410375112</a></p>
+<p>de la Torre, J. (2011). The generalized DINA model framework.
+<em>Psychometrika</em>, <em>76</em>(2), 179–199. <a href="https://doi.org/10.1007/s11336-011-9207-7" class="uri">https://doi.org/10.1007/s11336-011-9207-7</a></p>
+<p>Huang, H.-Y. (2022). Diagnostic classification model for
+forced-choice items and noncognitive tests. <em>Educational and
+Psychological Measurement</em>, <em>83</em>(1), 146–180. <a href="https://doi.org/10.1177/00131644211069906" class="uri">https://doi.org/10.1177/00131644211069906</a></p>
+<p>Lee, P., Joo, S.-H., Stark, S., &amp; Chernyshenko, O. S. (2018).
+GGUM-RANK statement and person parameter estimation with
+multidimensional forced choice triplets. <em>Applied Psychological
+Measurement</em>, <em>43</em>(3), 226–240. <a href="https://doi.org/10.1177/0146621618768294" class="uri">https://doi.org/10.1177/0146621618768294</a></p>
+<p>Luce, R. D. (1959). <em>Individual choice behavior: A theoretical
+analysis</em>. Wiley.</p>
+<p>Maydeu-Olivares, A., &amp; Joe, H. (2005). Limited- and
+full-information estimation and goodness-of-fit testing in 2^n
+contingency tables: A unified framework. <em>Journal of the American
+Statistical Association</em>, <em>100</em>(471), 1009–1020. <a href="https://doi.org/10.1198/016214504000002069" class="uri">https://doi.org/10.1198/016214504000002069</a></p>
+<p>Maydeu-Olivares, A., &amp; Joe, H. (2006). Limited information
+goodness-of-fit testing in multidimensional contingency tables.
+<em>Psychometrika</em>, <em>71</em>(4), 713–732. <a href="https://doi.org/10.1007/s11336-005-1295-9" class="uri">https://doi.org/10.1007/s11336-005-1295-9</a></p>
+<p>Muraki, E. (1992). A generalized partial credit model: Application of
+an EM algorithm. <em>Applied Psychological Measurement</em>,
+<em>16</em>(2), 159–176. <a href="https://doi.org/10.1177/014662169201600206" class="uri">https://doi.org/10.1177/014662169201600206</a></p>
+<p>Plackett, R. L. (1975). The analysis of permutations. <em>Journal of
+the Royal Statistical Society: Series C (Applied Statistics)</em>,
+<em>24</em>(2), 193–202. <a href="https://doi.org/10.2307/2346567" class="uri">https://doi.org/10.2307/2346567</a></p>
+<p>Reckase, M. D. (2009). <em>Multidimensional Item Response
+Theory</em>. Springer. <a href="https://doi.org/10.1007/978-0-387-89976-3" class="uri">https://doi.org/10.1007/978-0-387-89976-3</a></p>
+<p>Roberts, J. S., Donoghue, J. R., &amp; Laughlin, J. E. (2000). A
+general item response theory model for unfolding unidimensional
+polytomous responses. <em>Applied Psychological Measurement</em>,
+<em>24</em>(1), 3–32. <a href="https://doi.org/10.1177/01466216000241001" class="uri">https://doi.org/10.1177/01466216000241001</a></p>
+<p>Tu, N., Zhang, B., Angrave, L., Sun, T., &amp; Neuman, M. (2023).
+Estimating the multidimensional generalized graded unfolding model with
+covariates using a Bayesian approach. <em>Journal of Intelligence</em>,
+<em>11</em>(8), 163. <a href="https://doi.org/10.3390/jintelligence11080163" class="uri">https://doi.org/10.3390/jintelligence11080163</a></p>
+<p>Zheng, C., Liu, J., Li, Y., Xu, P., Zhang, B., Wei, R., Zhang, W.,
+Liu, B., &amp; Huang, J. (2024). A 2PLM-RANK multidimensional
+forced-choice model and its fast estimation algorithm. <em>Behavior
+Research Methods</em>, <em>56</em>(6), 6363–6388. <a href="https://doi.org/10.3758/s13428-023-02315-x" class="uri">https://doi.org/10.3758/s13428-023-02315-x</a></p>
+<p>Zhu, Y.-A., Xu, J., Wang, D., Li, X., Cai, Y., &amp; Tu, D. (2024). A
+ranking forced choice diagnostic classification model for psychological
+assessment using forced choice questionnaires. <em>British Journal of
+Mathematical and Statistical Psychology</em>, <em>78</em>(2), 617–646.
+<a href="https://doi.org/10.1111/bmsp.12376" class="uri">https://doi.org/10.1111/bmsp.12376</a></p>
+</div>
+
+
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>
