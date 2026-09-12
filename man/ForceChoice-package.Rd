@@ -121,6 +121,7 @@ head(sim$Q.matrix)
 
 Authors:
 \itemize{
+  \item Haijiang Qin \email{haijiang133@outlook.com} (\href{https://orcid.org/0009-0000-6721-5653}{ORCID}) [copyright holder]
   \item Lei Guo \email{happygl1229@swu.edu.cn} (\href{https://orcid.org/0000-0002-8273-3587}{ORCID}) [copyright holder]
 }
 

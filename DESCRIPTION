@@ -1,7 +1,7 @@
 Package: ForceChoice
 Title: Forced-Choice Modeling Based on Item Response Theory and
         Cognitive Diagnostic Models
-Version: 1.0.0
+Version: 1.0.1
 Authors@R: c(person(given = "Haijiang", 
                     family = "Qin", 
                     role = c("aut", "cre", "cph"), 
@@ -34,14 +34,12 @@ Description: Fits, simulates, and evaluates forced-choice and traditional
     (TLI), and standardized root mean square residual (SRMSR).
 License: GPL (>= 3)
 Encoding: UTF-8
-RoxygenNote: 7.3.3
 NeedsCompilation: yes
-Config/ForceChoice/skip-rstantools-config: true
 Biarch: true
 Depends: R (>= 4.1.0)
 Imports: coda, GPArotation, MASS, methods, numDeriv, parallel, Rcpp (>=
         0.12.0), RcppParallel (>= 5.0.1), rstan (>= 2.18.1), rstantools
-        (>= 2.6.0)
+        (>= 2.7.1)
 LinkingTo: BH (>= 1.66.0), Rcpp (>= 0.12.0), RcppArmadillo, RcppEigen
         (>= 0.3.3.3.0), RcppParallel (>= 5.0.1), rstan (>= 2.18.1),
         StanHeaders (>= 2.18.0)
@@ -49,10 +47,11 @@ SystemRequirements: GNU make
 Suggests: knitr, loo, rmarkdown
 VignetteBuilder: knitr
 Config/testthat/edition: 3
-Packaged: 2026-07-22 03:06:49 UTC; Haijiang
+Config/roxygen2/version: 8.1.0
+Packaged: 2026-09-12 16:25:53 UTC; Haiji
 Author: Haijiang Qin [aut, cre, cph] (ORCID:
     <https://orcid.org/0009-0000-6721-5653>),
   Lei Guo [aut, cph] (ORCID: <https://orcid.org/0000-0002-8273-3587>)
 Maintainer: Haijiang Qin <haijiang133@outlook.com>
 Repository: CRAN
-Date/Publication: 2026-07-30 17:20:30 UTC
+Date/Publication: 2026-09-12 17:10:02 UTC

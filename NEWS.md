@@ -1,3 +1,11 @@
+# ForceChoice 1.0.1
+
+## CRAN Compliance
+- Restored the rstantools automatic configuration: removed the
+  `Config/ForceChoice/skip-rstantools-config` field from `DESCRIPTION`,
+  restored the standard `configure` and `configure.win` scripts, and
+  regenerated the Stan export sources.
+
 # ForceChoice 1.0.0 (2026-07-12)
 
 ## New Features
